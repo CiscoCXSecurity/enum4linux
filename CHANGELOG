@@ -1,3 +1,9 @@
+2011-06-16 Enum4linux v0.8.8
+
+* Bug fix: -w option should now work better.  Allows 
+           domain crenedials to be used:
+	   -w domain -u user -p pass ...
+
 2011-02-21 Enum4linux v0.8.7
 
 * Bug fix: Now handles apostrophe in group names and 

@@ -1,3 +1,9 @@
+2011-02-21 Enum4linux v0.8.7
+
+* Bug fix: Now handles apostrophe in group names and 
+  other places.  Thanks to Emeric Epaillard and Nicolas 
+  Kerschenbaum for reporting this.
+
 2011-02-17 Enum4linux v0.8.6
 
 * Added -l option to get long domain name via LDAP.

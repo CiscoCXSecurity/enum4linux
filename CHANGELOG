@@ -1,0 +1,22 @@
+
+2007-12-05 Enum4Linux v0.8.0
+
+* Added -a option to try all simple enumeration.  You don't
+  need to remember long complicated command line options now.
+* Gets domain groups and domain group memberships now.
+  enum.exe fails to do this sometimes, so this feature is
+  actually incompatible with the original. :-)
+* Made RID cycling more robust: by default it now tries a list 
+  of common usernames (administrator, guest, root, ...) to get 
+  initial SID.
+* The "-k username" take a list of usernames to use when
+  attempting to get the SID.  Previously only supported one.
+* -d option implemented.  Displays detailed information about
+  users (primary group, last logon, password change info, etc.)
+  and groups (description, number of members).
+* Attempts to get Domain SID to determine if the host is
+  in a domain or in a workgroup.  Experimental.
+* Added -i option to get info about printers.
+* During RID cycling, the type of account discovered is
+  now displayed (Local User, Domain Group, etc.).
+

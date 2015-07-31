@@ -1,3 +1,13 @@
+2008-10-23 Enum4linux v0.8.4
+
+* Bug fix: No longer rejects hostnames containing hyphen.
+* Group members output is more parsable.
+* Output looks slightly more pretty.
+* Help message is more concise.
+* -a option is assumed if not other options are used.
+* "-K n" option added to keep RID cycling until n 
+  consecutive RIDs don't have usernames.
+
 2008-09-16 Enum4linux v0.8.3
 
 * Now tries to get all SIDs for target before RID cycling.

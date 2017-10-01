@@ -869,6 +869,8 @@ sub enum_users {
 	my $continue = 1;
 	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
 		print "[E] Couldn't find users using querydispinfo: NT_STATUS_ACCESS_DENIED\n";
+  } elsif ($users =~ /NT_STATUS_INVALID_PARAMETER/) {
+    print "[E] Couldn't find users using querydispinfo: NT_STATUS_INVALID_PARAMETER\n";
 	} else {
 		($users) = $users =~ /(index:.*)/s;
 		print $users;
@@ -883,6 +885,8 @@ sub enum_users {
 	$users = `$command`;
 	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
 		print "[E] Couldn't find users using enumdomusers: NT_STATUS_ACCESS_DENIED\n";
+  } elsif ($users =~ /NT_STATUS_INVALID_PARAMETER/) {
+    print "[E] Couldn't find users using enumdomusers: NT_STATUS_INVALID_PARAMETER\n";
 	} else {
 		($users) = $users =~ /(user:.*)/s;
 		print $users;

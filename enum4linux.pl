@@ -648,7 +648,7 @@ sub enum_shares {
 	}
 
 	print "\n[+] Attempting to map shares on $global_target\n";
-	my @shares = $shares =~ /\n\s+(\S+)\s+(?:Disk|IPC|Printer)/igs;
+	my @shares = $shares =~ /\n\s*([ \S]+?)\s+(?:Disk|IPC|Printer)/igs;
 	foreach my $share (@shares) {
 		$share =~ s/'/'\\''/g;
 		my $command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";

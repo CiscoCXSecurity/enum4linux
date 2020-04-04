@@ -310,8 +310,8 @@ if (defined($global_workgroup)) {
 foreach my $known_username (@global_known_usernames) {
 	$known_username =~ s/'/'\''/g; ($known_username) = $known_username =~ /(.*)/;
 }
-$global_username =~ s/'/'\''/g;       ($global_username)       = $global_username       =~ /(.*)/;
-$global_password =~ s/'/'\''/g;       ($global_password)       = $global_password       =~ /(.*)/;
+$global_username =~ s/'/'\\''/g;       ($global_username)       = $global_username       =~ /(.*)/;
+$global_password =~ s/'/'\\''/g;       ($global_password)       = $global_password       =~ /(.*)/;
 
 # Output message about options used
 print "Starting enum4linux v$VERSION ( http://labs.portcullis.co.uk/application/enum4linux/ ) on " .  scalar(localtime) . "\n";
@@ -661,7 +661,7 @@ sub enum_shares {
 	}
 
 	print_plus(" Attempting to map shares on $global_target\n");
-	my @shares = $shares =~ /\n\s+(\S+)\s+(?:Disk|IPC|Printer)/igs;
+	my @shares = $shares =~ /^[\t ]*?([ \S]+?)[\t ]*?(?:Disk|IPC|Printer)[^\n]*/gms;
 	foreach my $share (@shares) {
 		$share =~ s/'/'\\''/g;
 		my $command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";

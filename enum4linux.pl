@@ -309,8 +309,8 @@ if (defined($global_workgroup)) {
 foreach my $known_username (@global_known_usernames) {
 	$known_username =~ s/'/'\''/g; ($known_username) = $known_username =~ /(.*)/;
 }
-$global_username =~ s/'/'\''/g;       ($global_username)       = $global_username       =~ /(.*)/;
-$global_password =~ s/'/'\''/g;       ($global_password)       = $global_password       =~ /(.*)/;
+$global_username =~ s/'/'\\''/g;       ($global_username)       = $global_username       =~ /(.*)/;
+$global_password =~ s/'/'\\''/g;       ($global_password)       = $global_password       =~ /(.*)/;
 
 # Output message about options used
 print "Starting enum4linux v$VERSION ( http://labs.portcullis.co.uk/application/enum4linux/ ) on " .  scalar(localtime) . "\n";

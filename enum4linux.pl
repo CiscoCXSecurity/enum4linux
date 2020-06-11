@@ -522,17 +522,17 @@ sub enum_password_policy {
 
 sub enum_lsa_policy {
 	print_heading("LSA Policy Information on $global_target");
-	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
+	print "[E] Internal error.  Not implemented in this version of enum4linux.\n";
 }
 
 sub enum_machines {
 	print_heading("Machine Enumeration on $global_target");
-	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
+	print "[E] Internal error.  Not implemented in this version of enum4linux.\n";
 }
 
 sub enum_names {
 	print_heading("Name Enumeration on $global_target");
-	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
+	print "[E] Internal error.  Not implemented in this version of enum4linux.\n";
 }
 
 sub enum_groups {
@@ -629,7 +629,7 @@ sub enum_dom_groups {
 
 sub enum_groups_unauth {
 	print_heading("Groups on $global_target via RID cycling");
-	print "[E] INTERNAL ERROR.  Not implmented yet.  Maybe in the next version.\n";
+	print "[E] INTERNAL ERROR.  Not implemented yet.  Maybe in the next version.\n";
 }
 
 sub enum_shares {

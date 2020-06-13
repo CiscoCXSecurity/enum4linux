@@ -460,8 +460,14 @@ sub get_os_info {
 	my $os_info = `$command`;
 	chomp $os_info;
 	if (defined($os_info)) {
-		($os_info) = $os_info =~ /(Domain=[^\n]+)/s;
-		print "[+] Got OS info for $global_target from smbclient: $os_info\n";
+		my $os_info_result;
+		($os_info_result) = $os_info =~ /(Domain=[^\n]+)/s;
+		if (defined($os_info_result)) {
+			print "[+] Got OS info for $global_target from smbclient: $os_info_result\n";
+		}
+		else {
+			print "[E] smbclient returned no or invalid OS info for $global_target: \"$os_info\"\n";
+		}
 	}
 
 	$command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'srvinfo' '$global_target' 2>&1";

@@ -156,7 +156,7 @@ The following options from enum.exe aren't implemented: -L, -N, -D, -f
 
 Additional options:
     -a        Do all simple enumeration (-U -S -G -P -r -o -n -i).
-              This opion is enabled if you don't provide any other options.
+              This option is enabled if you don't provide any other options.
     -h        Display this help message and exit
     -r        enumerate users via RID cycling
     -R range  RID ranges to enumerate (default: $global_rid_range, implies -r)

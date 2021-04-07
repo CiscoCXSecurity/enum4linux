@@ -1,3 +1,8 @@
+2011-02-17 Enum4linux v0.8.6
+
+* Added -l option to get long domain name via LDAP.
+* Bug fix: Redefining variable warning.
+
 2011-02-12 Enum4linux v0.8.5
 
 * -P attempts to get partial password policy info using

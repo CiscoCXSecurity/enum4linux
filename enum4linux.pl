@@ -46,7 +46,7 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.5";
+my $VERSION="0.8.6";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
@@ -63,7 +63,7 @@ my $global_passpol = 0;
 my $global_rid_range = "500-550,1000-1050";
 my $global_known_username_string = "administrator,guest,krbtgt,domain admins,root,bin,none";
 my @dependent_programs = qw(nmblookup net rpcclient smbclient);
-my @optional_dependent_programs = qw(polenum.py);
+my @optional_dependent_programs = qw(polenum.py ldapsearch);
 my %odp_present = ();
 my $null_session_test = 0;
 my %opts;
@@ -162,6 +162,7 @@ Additional options:
     -K n      Keep searching RIDs until n consective RIDs don't correspond to
               a username.  Impies RID range ends at $heighest_rid. Useful 
 	      against DCs.
+    -l        Get some (limited) info via LDAP 389/TCP (for DCs only)
     -s file   brute force guessing for share names
     -k user   User(s) that exists on remote system (default: $global_known_username_string)
               Used to get sid with "lookupsid known_username"
@@ -207,7 +208,7 @@ $ENV{'PATH'} =~ s/:$//;
 $ENV{'PATH'} =~ s/^\.://;
 $ENV{'PATH'} =~ s/:\.//;
 
-getopts('UMNSPGLDu:dp:f:rR:s:k:vow:hnaiPK:', \%opts);
+getopts('UMNSPGlLDu:dp:f:rR:s:k:vow:hnaiPK:', \%opts);
 
 # Print help message if required
 if ($opts{'h'}) {
@@ -324,6 +325,7 @@ print "\n";
 get_workgroup();
 get_nbtstat()          if $opts{'n'};
 make_session();
+get_ldapinfo()         if $opts{'l'};
 get_domain_sid();
 get_os_info()          if $opts{'o'};
 
@@ -389,6 +391,43 @@ sub get_workgroup {
 		}
 	}
 	print "[+] Got domain/workgroup name: $global_workgroup\n";
+}
+
+# Get long domain name via LDAP
+# We don't do this by default because LDAP ports might not be present, or firewalled.
+sub get_ldapinfo {
+	print_heading("Getting information via LDAP for $global_target");
+	my $command = "ldapsearch -x -h '$global_target' -p 389 -s base namingContexts 2>&1";
+	print "[V] Attempting to long domain name: $command\n" if $verbose;
+	unless ($odp_present{"ldapsearch"}) {
+		print "[E] Dependent program \"ldapsearch\" not present.  Skipping this check.  Install ldapsearch to fix.\n\n";
+		return 0;
+	}
+
+	my $output = `$command`;
+
+	if ($output =~ /ldap_sasl_bind/) {
+		print "[E] Connection error\n";
+		return 0;
+	}
+	my $parent = 0;
+	foreach my $line (split "\n", $output) {
+		if ($line =~ /namingContexts: DC=DomainDnsZones/ or $line =~ /namingContexts: DC=ForestDnsZones/) {
+			$parent = 1;
+		} elsif ($line =~ /namingContexts:\s+(DC=[^,]+,DC=.*)/) {
+			my $long_domain = $1;
+			$long_domain =~ s/DC=//g;
+			$long_domain =~ s/,/./g;
+			print "[+] Long domain name for $global_target: $long_domain\n";
+		}
+	}
+
+	if ($parent == 1) {
+		print "[+] $global_target appears to be a root/parent DC\n";
+	} else {
+		print "[+] $global_target appears to be a child DC\n";
+	}
+
 }
 
 # See if we can connect using a null session or supplied credentials
@@ -458,9 +497,9 @@ sub enum_password_policy {
 	} else {
 		print "[E] polenum.py gave no output.\n";
 	}
-	my $command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c \"getdompwinfo\" 2>&1";
+	$command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c \"getdompwinfo\" 2>&1";
 	print "[V] Attempting to get Password Policy info with command: $command\n" if $verbose;
-	my $passpol_info = `$command`;
+	$passpol_info = `$command`;
 	chomp $passpol_info;
 	print "\n";
 	if (defined($passpol_info) and $passpol_info !~ /ACCESS_DENIED/) {

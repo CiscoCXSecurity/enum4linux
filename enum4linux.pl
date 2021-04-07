@@ -47,7 +47,7 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.7";
+my $VERSION="0.8.8";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
@@ -356,7 +356,7 @@ sub get_nbtstat {
 
 sub get_domain_sid {
 	print_heading("Getting domain SID for $global_target");
-	my $command = "rpcclient -U'$global_username'\%'$global_password' $global_target -c 'lsaquery' 2>&1";
+	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' $global_target -c 'lsaquery' 2>&1";
 	print "[V] Attempting to get domain SID with command: $command\n" if $verbose;
 	my $domain_sid_text = `$command`;
 	chomp $domain_sid_text;
@@ -434,7 +434,7 @@ sub get_ldapinfo {
 # See if we can connect using a null session or supplied credentials
 sub make_session {
 	print_heading("Session Check on $global_target");
-	my $command = "smbclient //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'help' 2>&1";
+	my $command = "smbclient -W '$global_workgroup' //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'help' 2>&1";
 	print "[V] Attempting to make null session using command: $command\n" if $verbose;
 	my $os_info = `$command`;
 	chomp $os_info;
@@ -455,7 +455,7 @@ sub make_session {
 # Get OS info
 sub get_os_info {
 	print_heading("OS information on $global_target");
-	my $command = "smbclient //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'q' 2>&1";
+	my $command = "smbclient -W '$global_workgroup' //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'q' 2>&1";
 	print "[V] Attempting to get OS info with command: $command\n" if $verbose;
 	my $os_info = `$command`;
 	chomp $os_info;
@@ -571,7 +571,7 @@ sub enum_groups {
 			$groupname =~ s/'/'\\''/g;
 			$rid_of_group{$groupname} =~ s/^0x//;
 			$rid_of_group{$groupname} = hex($rid_of_group{$groupname});
-			$command = "net rpc group members '$groupname' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
+			$command = "net rpc group members '$groupname' -W '$global_workgroup' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
 			print "[V] Running command: $command\n" if $verbose;
 			my $members = `$command`;
 			my @members = split "\n", $members;
@@ -611,7 +611,7 @@ sub enum_dom_groups {
 		$groupname =~ s/'/'\\''/g;
 		$rid_of_group{$groupname} =~ s/^0x//;
 		$rid_of_group{$groupname} = hex($rid_of_group{$groupname});
-		$command = "net rpc group members '$groupname' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
+		$command = "net rpc group members '$groupname' -W '$global_workgroup' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
 		print "[V] Running command: $command\n" if $verbose;
 		my $members = `$command`;
 		my @members = split "\n", $members;
@@ -636,8 +636,8 @@ sub enum_shares {
 	# Share enumeration
 	print_heading("Share Enumeration on $global_target");
 	print "[V] Attempting to get share list using authentication\n" if $verbose;
-	# my $shares = `net rpc share -I '$global_target' -U'$global_username'\%'$global_password' 2>&1`;
-	my $command = "smbclient -L //'$global_target' -U'$global_username'\%'$global_password' 2>&1";
+	# my $shares = `net rpc share -W '$global_workgroup' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1`;
+	my $command = "smbclient -W '$global_workgroup' -L //'$global_target' -U'$global_username'\%'$global_password' 2>&1";
 	my $shares = `$command`;
 	if (defined($shares)) {
 		if ($shares =~ /NT_STATUS_ACCESS_DENIED/) {
@@ -651,7 +651,7 @@ sub enum_shares {
 	my @shares = $shares =~ /\n\s+(\S+)\s+(?:Disk|IPC|Printer)/igs;
 	foreach my $share (@shares) {
 		$share =~ s/'/'\\''/g;
-		my $command = "smbclient //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
+		my $command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
 		print "[V] Attempting map to share //$global_target/$share with command: $command\n" if $verbose;
 		my $output = `$command`;
 		print "//$global_target/$share\t";
@@ -685,7 +685,7 @@ sub enum_shares_unauth {
 			exit 1;
 		}
 
-		my $result = `smbclient //'$global_target'/'$share' -c dir -U'$global_username'\%'$global_password' 2>&1`;
+		my $result = `smbclient -W '$global_workgroup' //'$global_target'/'$share' -c dir -U'$global_username'\%'$global_password' 2>&1`;
 		if ($result =~ /blocks of size .* blocks available/) {
 			print "$share EXISTS, Allows access using username: '$global_username', password: '$global_password'\n";
 		} elsif ($result =~ /NT_STATUS_BAD_NETWORK_NAME/) {

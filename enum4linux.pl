@@ -1,11 +1,11 @@
 #!/usr/bin/perl -w
 # enum4linux - Windows enumeration tool for Linux
-# Copyright (C) 2007  Mark Lowe
+# Copyright (C) 2008  Mark Lowe
 # 
 # This tool may be used for legal purposes only.  Users take full responsibility
 # for any actions performed using this tool.  The author accepts no liability
 # for damage caused by this tool.  If these terms are not acceptable to you, then
-# do not use this tool.
+# you are not permitted to use this tool.
 #
 # In all other respects the GPL version 2 applies:
 #
@@ -28,11 +28,6 @@
 #
 # TODO
 #
-# * Option to abort RID cycle after a (configurable) range of RIDs has
-#   no corresponding user accounts.  Useful when targetting DCs with
-#   10000 accounts: you don't want to stop at RID 1050, neither do you
-#   want to try 10000 RIDs on hosts that only have 50 accounts.
-#
 # * replace system($string) with system($prog, @args).
 #
 # * Search RID space intellegently.  Samba starts accounts at 0, but
@@ -51,11 +46,12 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.3";
+my $VERSION="0.8.4";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
 my $global_search_until_fail = 0; # no command line option yet
+my $heighest_rid = 999999;
 my $global_workgroup = undef;
 my $global_username = '';
 my $global_password = '';
@@ -137,69 +133,56 @@ my @nbt_info = (
 
 my $usage =<<USAGE;
 enum4linux v$VERSION \(http://labs.portcullis.co.uk/application/enum4linux/\)
-Copyright \(C\) 2006 Mark Lowe \(mrl\@portcullis-security.com\)
+Copyright \(C\) 2008 Mark Lowe \(mrl\@portcullis-security.com\)
 
-Simple wrapper around the tools in the samba package to provide similar functionality
-to enum (http://www.bindview.com/Services/RAZOR/Utilities/Windows/enum_readme.cfm).  
-Some additional features such as RID cycling have also been added for convenience.
-
-This is an ALPHA release only.  Some of the options supported by the original "enum" 
-aren't implemented in this release.
+Simple wrapper around the tools in the samba package to provide similar 
+functionality to enum.exe (formerly from www.bindview.com).  Some additional 
+features such as RID cycling have also been added for convenience.
 
 Usage: $0 [options] ip
 
 Options are (like "enum"):
-	-U             get userlist
-	-M             get machine list*
-	-N             get namelist dump (different from -U|-M)*
-	-S             get sharelist
-	-P             get password policy information
-	-G             get group and member list
-	-L             get LSA policy information*
-	-D             dictionary crack, needs -u and -f*        
-	-d             be detailed, applies to -U and -S
-	-u username    specify username to use (default "")  
-	-p password    specify password to use (default "")   
-	-f filename    specify dictfile to use (wants -D)*   
+    -U        get userlist
+    -M        get machine list*
+    -S        get sharelist
+    -P        get password policy information
+    -G        get group and member list
+    -d        be detailed, applies to -U and -S
+    -u user   specify username to use (default "")  
+    -p pass   specify password to use (default "")   
 
-* = Not implemented in this release.
+The following options from enum.exe aren't implemented: -L, -N, -D, -f
 
 Additional options:
-	-a             Do all simple enumeration (-U -S -G -r -o -n)
-	-h             Display this help message and exit
-	-r             enumerate users via RID cycling
-	-R range       RID ranges to enumerate (default: $global_rid_range, implies -r)
-	-s filename    brute force guessing for share names
-	-k username    User(s) that exists on remote system (default: $global_known_username_string)
-	               Used to get sid with "lookupsid known_username"
-		       Use commas to try several users: "-k admin,user1,user2"
-	-o             Get OS information
-	-i             Get printer information
-	-w workgroup   Specify workgroup manually (usually found automatically)
-	-n             Do an nmblookup (similar to nbtstat)
-	-v             Verbose.  Shows full commands being run (net, rpcclient, etc.)
+    -a        Do all simple enumeration (-U -S -G -P -r -o -n -i).
+              This opion is enabled if you don't provide any other options.
+    -h        Display this help message and exit
+    -r        enumerate users via RID cycling
+    -R range  RID ranges to enumerate (default: $global_rid_range, implies -r)
+    -K n      Keep searching RIDs until n consective RIDs don't correspond to
+              a username.  Impies RID range ends at $heighest_rid. Useful 
+	      against DCs.
+    -s file   brute force guessing for share names
+    -k user   User(s) that exists on remote system (default: $global_known_username_string)
+              Used to get sid with "lookupsid known_username"
+    	      Use commas to try several users: "-k admin,user1,user2"
+    -o        Get OS information
+    -i        Get printer information
+    -w wrkg   Specify workgroup manually (usually found automatically)
+    -n        Do an nmblookup (similar to nbtstat)
+    -v        Verbose.  Shows full commands being run (net, rpcclient, etc.)
 
-RID cycling should extract a list of users from Windows \(or Samba\) hosts which have 
-RestrictAnonymous set to 1 \(Windows NT and 2000\), or \"Network access: Allow 
-anonymous SID/Name translation\" enabled \(XP, 2003\).
-
-If no usernames are known, good names to try against Windows systems are:
-- administrator
-- guest
-- none
-- helpassistant
-- aspnet
-	
-The following might work against samba systems:
-- root
-- nobody
-- sys
+RID cycling should extract a list of users from Windows \(or Samba\) hosts 
+which have RestrictAnonymous set to 1 \(Windows NT and 2000\), or \"Network 
+access: Allow anonymous SID/Name translation\" enabled \(XP, 2003\).
 
 NB: Samba servers often seem to have RIDs in the range 3000-3050.
 
-Dependancy info:
-You will need to have the samba package installed as this script is basically
-just a wrapper around rpcclient, net, nmblookup and smbclient.
+Dependancy info: You will need to have the samba package installed as this 
+script is basically just a wrapper around rpcclient, net, nmblookup and 
+smbclient.  Polenum from http://labs.portcullis.co.uk/application/polenum/ 
+is required to get Password Policy info.
+
 USAGE
 
 # Notes on Taint
@@ -224,7 +207,7 @@ $ENV{'PATH'} =~ s/:$//;
 $ENV{'PATH'} =~ s/^\.://;
 $ENV{'PATH'} =~ s/:\.//;
 
-getopts('UMNSPGLDu:dp:f:rR:s:k:vow:hnaiP', \%opts);
+getopts('UMNSPGLDu:dp:f:rR:s:k:vow:hnaiPK:', \%opts);
 
 # Print help message if required
 if ($opts{'h'}) {
@@ -234,7 +217,7 @@ if ($opts{'h'}) {
 
 # Read host and untaint
 my $global_target = shift or die $usage;
-if ($global_target =~ /^([a-zA-Z0-9\.-_]+)$/) {
+if ($global_target =~ /^([a-zA-Z0-9\._-]+)$/) {
 	$global_target = $1;
 } else {
 	print "ERROR: Target hostname \"$global_target\" contains some illegal characters\n";
@@ -245,7 +228,12 @@ if ($global_target =~ /^([a-zA-Z0-9\.-_]+)$/) {
 # Read in options
 #
 
-# Turn on -U -S -G -r -o -n
+# Enable -a if no other options (apart from -v) are given
+unless (scalar( grep { $_ ne 'v' } keys %opts)) {
+	$opts{'a'} = 1;
+}
+
+# Turn on some other options if -a given
 if ($opts{'a'}) {
 	$opts{'U'} = 1;
 	$opts{'S'} = 1;
@@ -264,11 +252,14 @@ $global_dictionary     = $opts{'D'} if $opts{'D'};
 $global_filename       = $opts{'f'} if $opts{'f'};
 $global_rid_range      = $opts{'R'} if $opts{'R'};
 $global_passpol        = $opts{'P'} if $opts{'P'};
+$global_fail_limit     = $opts{'K'} if $opts{'K'};
 $global_share_file     = $opts{'s'} if $opts{'s'};
 $global_known_username_string = $opts{'k'} if $opts{'k'};
 $global_workgroup      = $opts{'w'} if $opts{'w'};
 $verbose               = $opts{'v'} if $opts{'v'};
 $opts{'r'}             = 1          if $opts{'R'};
+
+$global_search_until_fail = 1 if defined($opts{'K'});
 
 my @global_known_usernames = split(",", $global_known_username_string);
 
@@ -320,8 +311,8 @@ $global_username =~ s/'/'\''/g;       ($global_username)       = $global_usernam
 $global_password =~ s/'/'\''/g;       ($global_password)       = $global_password       =~ /(.*)/;
 
 # Output message about options used
-print "Starting enum4linux v$VERSION ( http://labs.portcullis.co.uk/application/enum4linux/ ) on " .  scalar(localtime) . "\n\n";
-print "----- Target information -----\n";
+print "Starting enum4linux v$VERSION ( http://labs.portcullis.co.uk/application/enum4linux/ ) on " .  scalar(localtime) . "\n";
+print_heading("Target Information");
 print "Target ........... $global_target\n";
 print "RID Range ........ $global_rid_range\n";
 print "Username ......... '$global_username'\n";
@@ -332,8 +323,8 @@ print "\n";
 # Basic enumeration, check session
 get_workgroup();
 get_nbtstat()          if $opts{'n'};
-get_domain_sid();
 make_session();
+get_domain_sid();
 get_os_info()          if $opts{'o'};
 
 # enum-compatible functions
@@ -354,14 +345,14 @@ get_printer_info()     if $opts{'i'};
 print "enum4linux complete on " . scalar(localtime) . "\n\n";
 
 sub get_nbtstat {
-	print "----- Nbtstat Information for $global_target -----\n";
+	print_heading("Nbtstat Information for $global_target");
 	my $output = `nmblookup -A '$global_target' 2>&1`;
 	$output = nbt_to_human($output);
-	print "$output\n\n";
+	print "$output\n";
 }
 
 sub get_domain_sid {
-	print "----- Getting domain SID for $global_target -----\n";
+	print_heading("Getting domain SID for $global_target");
 	my $command = "rpcclient -U'$global_username'\%'$global_password' $global_target -c 'lsaquery' 2>&1";
 	print "[V] Attempting to get domain SID with command: $command\n" if $verbose;
 	my $domain_sid_text = `$command`;
@@ -375,12 +366,11 @@ sub get_domain_sid {
 	} else {
 		print "[+] Can't determine if host is part of domain or part of a workgroup\n";
 	}
-	print "\n";
 }
 
 # Get workgroup from nbstat info - we need this for lots of rpcclient calls
 sub get_workgroup {
-	print "----- Enumerating Workgroup/Domain on $global_target ------\n";
+	print_heading("Enumerating Workgroup/Domain on $global_target");
 	print "[V] Attempting to get domain name with command: nmblookup -A '$global_target'\n" if $verbose;
 
 	# Workgroup might already be known - e.g. from command line or from get_os_info()
@@ -399,12 +389,11 @@ sub get_workgroup {
 		}
 	}
 	print "[+] Got domain/workgroup name: $global_workgroup\n";
-	print "\n";
 }
 
 # See if we can connect using a null session or supplied credentials
 sub make_session {
-	print "----- Session Check on $global_target -----\n";
+	print_heading("Session Check on $global_target");
 	my $command = "smbclient //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'help' 2>&1";
 	print "[V] Attempting to make null session using command: $command\n" if $verbose;
 	my $os_info = `$command`;
@@ -421,13 +410,11 @@ sub make_session {
 		($global_workgroup) = $os_info =~ /Domain=\[([^]]*)\]/;
 		print "[+] Got domain/workgroup name: $global_workgroup\n";
 	}
-
-	print "\n";
 }
 
 # Get OS info
 sub get_os_info {
-	print "----- OS information on $global_target -----\n";
+	print_heading("OS information on $global_target");
 	my $command = "smbclient //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'q' 2>&1";
 	print "[V] Attempting to get OS info with command: $command\n" if $verbose;
 	my $os_info = `$command`;
@@ -447,11 +434,10 @@ sub get_os_info {
 			print "[+] Got OS info for $global_target from srvinfo:\n$os_info";
 		}
 	}
-	print "\n";
 }
 
 sub enum_password_policy {
-	print "----- Password Policy Information for $global_target -----\n";
+	print_heading("Password Policy Information for $global_target");
 	my $command = "polenum.py '$global_username':'$global_password'\@'$global_target' 2>&1";
 	unless ($odp_present{"polenum.py"}) {
 		print "[E] Dependent program \"polenum.py\" not present.  Skipping this check.  Download polenum from http://labs.portcullis.co.uk/application/polenum/\n\n";
@@ -472,38 +458,34 @@ sub enum_password_policy {
 	} else {
 		print "[E] polenum.py gave no output.\n";
 	}
-	print "\n";
 }
 
 sub enum_lsa_policy {
-	print "----- LSA Policy Information on $global_target -----\n";
+	print_heading("LSA Policy Information on $global_target");
 	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
-	print "\n";
 }
 
 sub enum_machines {
-	print "----- Machine Enumeration on $global_target -----\n";
+	print_heading("Machine Enumeration on $global_target");
 	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
-	print "\n";
 }
 
 sub enum_names {
-	print "----- Name Enumeration on $global_target -----\n";
+	print_heading("Name Enumeration on $global_target");
 	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
-	print "\n";
 }
 
 sub enum_groups {
-	print "----- Groups on $global_target -----\n";
+	print_heading("Groups on $global_target");
 	foreach my $grouptype ("builtin", "domain") {
 		# Get list of groups
 		my $command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c \"enumalsgroups $grouptype\" 2>&1";
 		if ($grouptype eq "domain") {
 			print "[V] Getting local groups with command: $command\n" if $verbose;
-			print "[+] Getting local groups:\n";
+			print "\n[+] Getting local groups:\n";
 		} else {
 			print "[V] Getting $grouptype groups with command: $command\n" if $verbose;
-			print "[+] Getting $grouptype groups:\n";
+			print "\n[+] Getting $grouptype groups:\n";
 		}
 		my $groups_string = `$command`;
 		if ($groups_string =~ /error: NT_STATUS_ACCESS_DENIED/) {
@@ -517,28 +499,25 @@ sub enum_groups {
 			$groups_string = "" unless defined($groups_string);
 			print $groups_string;
 		}
-		print "\n";
 
 		# Get group members
 		my %rid_of_group = $groups_string =~ /\[([^\]]+)\]/sg;
 		if ($grouptype eq "domain") {
-			print "[+] Getting local group memberships:\n";
+			print "\n[+] Getting local group memberships:\n";
 		} else {
-			print "[+] Getting $grouptype group memberships:\n";
+			print "\n[+] Getting $grouptype group memberships:\n";
 		}
 		foreach my $groupname (keys %rid_of_group) {
 			$rid_of_group{$groupname} =~ s/^0x//;
 			$rid_of_group{$groupname} = hex($rid_of_group{$groupname});
 			$command = "net rpc group members '$groupname' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
 			print "[V] Running command: $command\n" if $verbose;
-			print "Group '$groupname' (RID: " . $rid_of_group{$groupname} . ") has members:\n";
 			my $members = `$command`;
-			$members =~ s/^/\t/;
-			$members =~ s/\n/\n\t/gs;
-			$members =~ s/\t$//;
-			print "$members";
+			my @members = split "\n", $members;
+			foreach my $m (@members) {
+				print "Group '$groupname' (RID: " . $rid_of_group{$groupname} . ") has member: $m\n";
+			}
 		}
-		print "\n";
 		if ($global_detailed) {
 			foreach my $groupname (keys %rid_of_group) {
 				print "[+] Getting detailed info for group $groupname (RID: " . $rid_of_group{$groupname} . ")\n";
@@ -552,7 +531,7 @@ sub enum_dom_groups {
 	# Get list of groups
 	my $command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c \"enumdomgroups\" 2>&1";
 	print "[V] Getting domain groups with command: $command\n" if $verbose;
-	print "[+] Getting domain groups:\n";
+	print "\n[+] Getting domain groups:\n";
 
 	my $groups_string = `$command`;
 	if ($groups_string =~ /error: NT_STATUS_ACCESS_DENIED/) {
@@ -562,25 +541,22 @@ sub enum_dom_groups {
 		$groups_string = "" unless defined($groups_string);
 		print $groups_string;
 	}
-	print "\n";
 
 	# Get group members
 	my %rid_of_group = $groups_string =~ /\[([^\]]+)\]/sg;
-	print "[+] Getting domain group memberships:\n";
+	print "\n[+] Getting domain group memberships:\n";
 
 	foreach my $groupname (keys %rid_of_group) {
 		$rid_of_group{$groupname} =~ s/^0x//;
 		$rid_of_group{$groupname} = hex($rid_of_group{$groupname});
 		$command = "net rpc group members '$groupname' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
 		print "[V] Running command: $command\n" if $verbose;
-		print "Group '$groupname' (RID: " . $rid_of_group{$groupname} . ") has members:\n";
 		my $members = `$command`;
-		$members =~ s/^/\t/;
-		$members =~ s/\n/\n\t/gs;
-		$members =~ s/\t$//;
-		print "$members";
+		my @members = split "\n", $members;
+		foreach my $m (@members) {
+			print "Group '$groupname' (RID: " . $rid_of_group{$groupname} . ") has member: $m\n";
+		}
 	}
-	print "\n";
 	if ($global_detailed) {
 		foreach my $groupname (keys %rid_of_group) {
 			print "[+] Getting detailed info for group $groupname (RID: " . $rid_of_group{$groupname} . ")\n";
@@ -590,14 +566,13 @@ sub enum_dom_groups {
 }
 
 sub enum_groups_unauth {
-	print "----- Groups on $global_target via RID cycling -----\n";
+	print_heading("Groups on $global_target via RID cycling");
 	print "[E] INTERNAL ERROR.  Not implmented yet.  Maybe in the next version.\n";
-	print "\n";
 }
 
 sub enum_shares {
 	# Share enumeration
-	print "----- Share Enumeration on $global_target -----\n";
+	print_heading("Share Enumeration on $global_target");
 	print "[V] Attempting to get share list using authentication\n" if $verbose;
 	# my $shares = `net rpc share -I '$global_target' -U'$global_username'\%'$global_password' 2>&1`;
 	my $command = "smbclient -L //$global_target -U'$global_username'\%'$global_password' 2>&1";
@@ -610,7 +585,7 @@ sub enum_shares {
 		}
 	}
 
-	print "\n----- Attempting to map to shares on $global_target -----\n";
+	print "\n[+] Attempting to map shares on $global_target\n";
 	my @shares = $shares =~ /\n\s+(\S+)\s+(?:Disk|IPC|Printer)/igs;
 	foreach my $share (@shares) {
 		my $command = "smbclient //$global_target/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
@@ -628,11 +603,10 @@ sub enum_shares {
 			print $output;
 		}
 	}
-	print "\n";
 }
 
 sub enum_shares_unauth {
-	print "----- Brute Force Share Enumeration on $global_target -----\n";
+	print_heading("Brute Force Share Enumeration on $global_target");
 	print "[V] Attempting to get share list using bruteforcing\n" if $verbose;
 	my $shares_file = $global_share_file;
 	open SHARES, "<$shares_file" or die "[E] Can't open share list file $shares_file: $!\n";
@@ -659,11 +633,10 @@ sub enum_shares_unauth {
 			print $result;
 		}
 	}
-	print "\n";
 }
 
 sub enum_users_rids {
-	print "----- Users on $global_target via RID cycling (RIDS: $global_rid_range) -----\n";
+	print_heading("Users on $global_target via RID cycling (RIDS: $global_rid_range)");
 	
 	my $sid;
 	my %sids = ();
@@ -673,14 +646,14 @@ sub enum_users_rids {
 	foreach my $known_username (@global_known_usernames) {
 		my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c \"lookupnames '$known_username'\" 2>&1";
 		print "[V] Attempting to get SID from $global_target with command: $command\n" if $verbose;
-		print "[I] Assuming that user \"$known_username\" exists\n";
+		print "[V] Assuming that user \"$known_username\" exists\n" if $verbose;
 		$logon = "username '$global_username', password '$global_password'";
 		$sid = `$command`;
 		if ($sid =~ /NT_STATUS_ACCESS_DENIED/) {
 			print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED.  RID cycling not possible.\n";
-			next;
+			last;
 		} elsif ($sid =~ /NT_STATUS_NONE_MAPPED/) {
-			print "[E] User \"$known_username\" doesn't exist.  User enumeration should be possible, but SID needed...\n";
+			print "[V] User \"$known_username\" doesn't exist.  User enumeration should be possible, but SID needed...\n" if $verbose;
 			next;
 		} elsif ($sid =~ /S-1-5-21-\S+-\d+\s+/) {
 			($cleansid) = $sid =~ /(S-1-5-21-\S+)-\d+\s+/;
@@ -758,10 +731,13 @@ sub enum_users_rids {
 			print "[E] Couldn't find SID.  Aborting RID cycling attempt.\n\n";
 			return 1;
 		}
-		print "[+] Got SID: $sid using $logon\n";
+		print "[+] Enumerating users using SID $sid and logon $logon\n";
 		
 		# RID Cycle;
-		foreach my $rid_range (split(",", $global_rid_range)) {
+		my $last_range = 0;
+		my @ranges = split(",", $global_rid_range);
+		foreach my $rid_range (@ranges) {
+			$last_range = 1 if $rid_range eq $ranges[scalar(@ranges) - 1];
 			my ($start_rid, $end_rid);
 		
 			# Check range is of form n-m (n,m integers)
@@ -789,6 +765,9 @@ sub enum_users_rids {
 			}
 	
 			my $fail_count = 0;
+			if ($global_search_until_fail and $last_range) {
+				$end_rid = $heighest_rid;
+			}
 			foreach my $rid ($start_rid..$end_rid) {
 				my $output = `rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c "lookupsids $sid-$rid" 2>&1`;
 				my ($sid_and_user) = $output =~ /(S-\d+-\d+-\d+-[\d-]+\s+[^\)]+\))/;
@@ -817,25 +796,26 @@ sub enum_users_rids {
 				}
 			}
 		}
-		print "\n";
 	} # foreach sid
 }
 
 sub enum_users {
-	print "----- Users on $global_target -----\n";
+	print_heading("Users on $global_target");
 	my $command = "rpcclient -W $global_workgroup -c querydispinfo -U'$global_username'\%'$global_password' '$global_target' 2>&1";
 	print "[V] Attempting to get userlist with command: $command\n" if $verbose;
 	my $users = `$command`;
+	my $continue = 1;
 	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
 		print "[E] Couldn't find users using querydispinfo: NT_STATUS_ACCESS_DENIED\n";
 	} else {
 		($users) = $users =~ /(index:.*)/s;
 		print $users;
+		$continue = 0;
 	}
-	print "\n";
 	my @rids_hex = $users =~ /RID:\s+0x([a-fA-f0-9]+)\s/gs;
 	my @rids = map { hex($_) } @rids_hex;
 
+	print "\n";
 	$command = "rpcclient -W $global_workgroup -c enumdomusers -U'$global_username'\%'$global_password' '$global_target' 2>&1";
 	print "[V] Attempting to get userlist with command: $command\n" if $verbose;
 	$users = `$command`;
@@ -845,7 +825,6 @@ sub enum_users {
 		($users) = $users =~ /(user:.*)/s;
 		print $users;
 	}
-	print "\n";
 	my @rids_hex2 = $users =~ /rid:\[0x([A-Fa-f0-9]+)\]/gs;
 	my @rids2 = map { hex($_) } @rids_hex2;
 
@@ -883,7 +862,7 @@ sub get_user_details_from_rid {
 }
 
 sub get_printer_info {
-	print "----- Getting printer info for $global_target -----\n";
+	print_heading("Getting printer info for $global_target");
 	my $command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' -c 'enumprinters' '$global_target' 2>&1";
 	print "[V] Attempting to get printer info with command: $command\n" if $verbose;
 	my $printer_info = `$command`;
@@ -926,4 +905,14 @@ sub nbt_to_human {
 		}
 	}	
 	return join "\n", @nbt_out;
+}
+
+sub print_heading {
+	my $string = shift;
+	my $output = "|    $string    |";
+	my $len = length($output);
+	print "\n";
+	print " " . "=" x ($len - 2) . " \n";
+	print "$output\n";
+	print " " . "=" x ($len - 2) . " \n";
 }

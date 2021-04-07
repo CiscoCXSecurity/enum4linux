@@ -51,7 +51,7 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.1";
+my $VERSION="0.8.2";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
@@ -133,7 +133,7 @@ my @nbt_info = (
 ####################### end of nbtscan-derrived code ############################
 
 my $usage =<<USAGE;
-enum4linux v$VERSION \(http://www.portcullis-security.com/tools/\)
+enum4linux v$VERSION \(http://labs.portcullis.co.uk/application/enum4linux/\)
 Copyright \(C\) 2006 Mark Lowe \(mrl\@portcullis-security.com\)
 
 Simple wrapper around the tools in the samba package to provide similar functionality
@@ -304,7 +304,7 @@ $global_username =~ s/'/'\''/g;       ($global_username)       = $global_usernam
 $global_password =~ s/'/'\''/g;       ($global_password)       = $global_password       =~ /(.*)/;
 
 # Output message about options used
-print "Starting enum4linux v$VERSION ( http://www.portcullis-security.com/tools ) on " .  scalar(localtime) . "\n\n";
+print "Starting enum4linux v$VERSION ( http://labs.portcullis.co.uk/application/enum4linux/ ) on " .  scalar(localtime) . "\n\n";
 print "----- Target information -----\n";
 print "Target ........... $global_target\n";
 print "RID Range ........ $global_rid_range\n";

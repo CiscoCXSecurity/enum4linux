@@ -51,7 +51,7 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.2";
+my $VERSION="0.8.3";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
@@ -63,9 +63,12 @@ my $global_dictionary = 0;
 my $global_filename = undef;
 my $global_share_file = undef;
 my $global_detailed = 0;
+my $global_passpol = 0;
 my $global_rid_range = "500-550,1000-1050";
 my $global_known_username_string = "administrator,guest,krbtgt,domain admins,root,bin,none";
 my @dependent_programs = qw(nmblookup net rpcclient smbclient);
+my @optional_dependent_programs = qw(polenum.py);
+my %odp_present = ();
 my $null_session_test = 0;
 my %opts;
 
@@ -150,7 +153,7 @@ Options are (like "enum"):
 	-M             get machine list*
 	-N             get namelist dump (different from -U|-M)*
 	-S             get sharelist
-	-P             get password policy information*
+	-P             get password policy information
 	-G             get group and member list
 	-L             get LSA policy information*
 	-D             dictionary crack, needs -u and -f*        
@@ -221,7 +224,7 @@ $ENV{'PATH'} =~ s/:$//;
 $ENV{'PATH'} =~ s/^\.://;
 $ENV{'PATH'} =~ s/:\.//;
 
-getopts('UMNSPGLDu:dp:f:rR:s:k:vow:hnai', \%opts);
+getopts('UMNSPGLDu:dp:f:rR:s:k:vow:hnaiP', \%opts);
 
 # Print help message if required
 if ($opts{'h'}) {
@@ -248,6 +251,7 @@ if ($opts{'a'}) {
 	$opts{'S'} = 1;
 	$opts{'G'} = 1;
 	$opts{'r'} = 1;
+	$opts{'P'} = 1;
 	$opts{'o'} = 1;
 	$opts{'n'} = 1;
 	$opts{'i'} = 1;
@@ -259,6 +263,7 @@ $global_detailed       = $opts{'d'} if $opts{'d'};
 $global_dictionary     = $opts{'D'} if $opts{'D'};
 $global_filename       = $opts{'f'} if $opts{'f'};
 $global_rid_range      = $opts{'R'} if $opts{'R'};
+$global_passpol        = $opts{'P'} if $opts{'P'};
 $global_share_file     = $opts{'s'} if $opts{'s'};
 $global_known_username_string = $opts{'k'} if $opts{'k'};
 $global_workgroup      = $opts{'w'} if $opts{'w'};
@@ -277,6 +282,17 @@ foreach my $prog (@dependent_programs) {
 		$dependency_error = 1;
 	} else {
 		print "[V] Dependent program \"$prog\" found in $which_output\n" if $verbose;
+	}
+}
+foreach my $prog (@optional_dependent_programs) {
+	my $which_output = `which $prog 2>&1`;
+	chomp $which_output;
+	if ($which_output !~ /^\/.*\/$prog$/) {
+		print "WARNING: $prog is not in your path.  Check that package is installed and your PATH is sane.\n";
+		$odp_present{$prog} = 0;
+	} else {
+		print "[V] Dependent program \"$prog\" found in $which_output\n" if $verbose;
+		$odp_present{$prog} = 1;
 	}
 }
 if ($dependency_error) {
@@ -413,7 +429,7 @@ sub make_session {
 sub get_os_info {
 	print "----- OS information on $global_target -----\n";
 	my $command = "smbclient //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'q' 2>&1";
-	print "[V] Attempting to OS info with command: $command\n" if $verbose;
+	print "[V] Attempting to get OS info with command: $command\n" if $verbose;
 	my $os_info = `$command`;
 	chomp $os_info;
 	if (defined($os_info)) {
@@ -422,7 +438,7 @@ sub get_os_info {
 	}
 
 	$command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' -c 'srvinfo' '$global_target' 2>&1";
-	print "[V] Attempting to OS info with command: $command\n" if $verbose;
+	print "[V] Attempting to get OS info with command: $command\n" if $verbose;
 	$os_info = `$command`;
 	if (defined($os_info)) {
 		if ($os_info =~ /error: NT_STATUS_ACCESS_DENIED/) {
@@ -430,6 +446,31 @@ sub get_os_info {
 		} else {
 			print "[+] Got OS info for $global_target from srvinfo:\n$os_info";
 		}
+	}
+	print "\n";
+}
+
+sub enum_password_policy {
+	print "----- Password Policy Information for $global_target -----\n";
+	my $command = "polenum.py '$global_username':'$global_password'\@'$global_target' 2>&1";
+	unless ($odp_present{"polenum.py"}) {
+		print "[E] Dependent program \"polenum.py\" not present.  Skipping this check.  Download polenum from http://labs.portcullis.co.uk/application/polenum/\n\n";
+		return 0;
+	}
+	print "[V] Attempting to get Password Policy info with command: $command\n" if $verbose;
+	my $passpol_info = `$command`;
+	chomp $passpol_info;
+	if (defined($passpol_info)) {
+		if ($passpol_info =~ /Account Lockout Threshold/) {
+			print $passpol_info;
+		} elsif ($passpol_info =~ /Error Getting Password Policy: Connect error/) {
+			print "[E] Can't connect to host with supplied credentials.\n";
+		} else {
+			print "[E] Unexpected error from polenum.py:\n";
+			print $passpol_info;
+		}
+	} else {
+		print "[E] polenum.py gave no output.\n";
 	}
 	print "\n";
 }
@@ -442,12 +483,6 @@ sub enum_lsa_policy {
 
 sub enum_machines {
 	print "----- Machine Enumeration on $global_target -----\n";
-	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
-	print "\n";
-}
-
-sub enum_password_policy {
-	print "----- Password Policy Information for $global_target -----\n";
 	print "[E] Internal error.  Not implmented in this version of enum4linux.\n";
 	print "\n";
 }
@@ -631,6 +666,7 @@ sub enum_users_rids {
 	print "----- Users on $global_target via RID cycling (RIDS: $global_rid_range) -----\n";
 	
 	my $sid;
+	my %sids = ();
 	my $logon;
 	my $cleansid;
 	# Get SID - try other known usernames if necessary
@@ -639,7 +675,7 @@ sub enum_users_rids {
 		print "[V] Attempting to get SID from $global_target with command: $command\n" if $verbose;
 		print "[I] Assuming that user \"$known_username\" exists\n";
 		$logon = "username '$global_username', password '$global_password'";
-		$sid=`$command`;
+		$sid = `$command`;
 		if ($sid =~ /NT_STATUS_ACCESS_DENIED/) {
 			print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED.  RID cycling not possible.\n";
 			next;
@@ -648,104 +684,141 @@ sub enum_users_rids {
 			next;
 		} elsif ($sid =~ /S-1-5-21-\S+-\d+\s+/) {
 			($cleansid) = $sid =~ /(S-1-5-21-\S+)-\d+\s+/;
-			last;
+			print "[I] Found new SID: $cleansid\n" unless defined($sids{$cleansid});
+			$sids{$cleansid} = 1;
+			next;
 		} elsif ($sid =~ /S-1-5-\S+-\d+\s+/) {
 			($cleansid) = $sid =~ /(S-1-5-\S+)-\d+\s+/;
-			last;
+			print "[I] Found new SID: $cleansid\n" unless defined($sids{$cleansid});
+			$sids{$cleansid} = 1;
+			next;
 		} elsif ($sid =~ /S-1-22-\S+-\d+\s+/) {
 			($cleansid) = $sid =~ /(S-1-22-\S+)-\d+\s+/;
-			last;
+			print "[I] Found new SID: $cleansid\n" unless defined($sids{$cleansid});
+			$sids{$cleansid} = 1;
+			next;
+		} else {
+			next;
+		}
+	}
+
+	# Get some more SIDs (hopefully)
+	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c lsaenumsid 2>&1";
+	print "[V] Attempting to get SIDs from $global_target with command: $command\n" if $verbose;
+	my $sids = `$command`;
+	foreach my $sid ($sids =~ /(S-[0-9-]+)/g) {
+		print "[V] Processing SID $sid\n" if $verbose;
+		if ($sid =~ /NT_STATUS_ACCESS_DENIED/) {
+			print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED.  RID cycling not possible.\n";
+			next;
+		} elsif ($sid =~ /S-1-5-21-\S+-\d+/) {
+			($cleansid) = $sid =~ /(S-1-5-21-\S+)-\d+/;
+			print "[I] Found new SID: $cleansid\n" unless defined($sids{$cleansid});
+			$sids{$cleansid} = 1;
+			next;
+		} elsif ($sid =~ /S-1-5-\S+-\d+/) {
+			($cleansid) = $sid =~ /(S-1-5-\S+)-\d+/;
+			print "[I] Found new SID: $cleansid\n" unless defined($sids{$cleansid});
+			$sids{$cleansid} = 1;
+			next;
+		} elsif ($sid =~ /S-1-22-\S+-\d+/) {
+			($cleansid) = $sid =~ /(S-1-22-\S+)-\d+/;
+			print "[I] Found new SID: $cleansid\n" unless defined($sids{$cleansid});
+			$sids{$cleansid} = 1;
+			next;
 		} else {
 			next;
 		}
 	}
 
 	$sid = $cleansid;
-	if (! defined($sid) and $global_username) {
-		print "[V] WARNING: Can\'t get SID.  Maybe none of the 'known' users really exist.  Try others with -k.  Trying null session.\n" if $verbose;
-		foreach my $known_username (@global_known_usernames) {
-			my $command = "rpcclient -W $global_workgroup -U% '$global_target' -c \"lookupnames '$known_username'\" 2>&1";
-			print "[I] Assuming that user $known_username exists\n";
-			print "[V] Trying null username and password: $command\n" if $verbose;
-			$sid=`$command`;
-			if ($sid =~ /error: NT_STATUS_ACCESS_DENIED/) {
-				print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED\n";
-				next;
-			} else {
-				last;
-			}
-		}
-		($sid) = $sid =~ /(S-1-5-21-\S+)-\d+\s+/;
-		unless (defined($sid)) {
-			print "[E] Can't get SID using either a null username or the username \"$global_username\"\n";
-			exit 1;
-		}
-		$logon = "username '', password ''"
-	}
-	unless (defined($sid)) {
-		print "[E] Couldn't find SID.  Aborting RID cycling attempt.\n\n";
-		return 1;
-	}
-	print "[+] Got SID: $sid using $logon\n";
-	
-	# RID Cycle;
-	foreach my $rid_range (split(",", $global_rid_range)) {
-		my ($start_rid, $end_rid);
-	
-		# Check range is of form n-m (n,m integers)
-		if ($rid_range =~ /\d+-\d+/) {
-			($start_rid, $end_rid) = $rid_range =~ /^(\d+)-(\d+)$/;
-			
-		# Check range is of form n (n integer)
-		} elsif ($rid_range =~ /^\d+$/) {
-			($start_rid, $end_rid) = ($rid_range, $rid_range);
-	
-		# Invalid range
-		} else {
-			print "WARNING: RID range $rid_range isn't valid.  Should be like 10-20 or 1199.  Ignoring this range\n";
-			next;
-		}
-	
-		# Check we have an ascending range
-		if ($start_rid > $end_rid) {	
-			print "WARNING: RID range $rid_range seems to be reversed.  Automatically reversing.\n";
-			($start_rid, $end_rid) = ($end_rid, $start_rid);
-		}
-	
-		if ($global_search_until_fail) {
-			$end_rid = 500000;
-		}
-
-		my $fail_count = 0;
-		foreach my $rid ($start_rid..$end_rid) {
-			my $output = `rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c "lookupsids $sid-$rid" 2>&1`;
-			my ($sid_and_user) = $output =~ /(S-\d+-\d+-\d+-[\d-]+\s+[^\)]+\))/;
-			if ($sid_and_user) {
-				$sid_and_user =~ s/\(1\)/(Local User)/;
-				$sid_and_user =~ s/\(2\)/(Domain Group)/;
-				$sid_and_user =~ s/\(2\)/(Domain User)/;
-				$sid_and_user =~ s/\(4\)/(Local Group)/;
-
-				# Samba servers sometimes claim to have user accounts
-				# with the same name as the UID/RID.  We don't report these.
-				if ($sid_and_user =~ /-(\d+) .*\\\1 \(/) {
-					$fail_count++;
+	foreach my $sid (keys %sids) {
+		if (! defined($sid) and $global_username) {
+			print "[V] WARNING: Can\'t get SID.  Maybe none of the 'known' users really exist.  Try others with -k.  Trying null session.\n" if $verbose;
+			foreach my $known_username (@global_known_usernames) {
+				my $command = "rpcclient -W $global_workgroup -U% '$global_target' -c \"lookupnames '$known_username'\" 2>&1";
+				print "[I] Assuming that user $known_username exists\n";
+				print "[V] Trying null username and password: $command\n" if $verbose;
+				$sid=`$command`;
+				if ($sid =~ /error: NT_STATUS_ACCESS_DENIED/) {
+					print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED\n";
+					next;
 				} else {
-					print "$sid_and_user\n";
-					$fail_count = 0;
-					get_user_details_from_rid($rid) if $sid_and_user =~ /\((Local|Domain) User\)/;
-					get_group_details_from_rid($rid) if $sid_and_user =~ /\((Local|Domain) Group\)/;
+					last;
 				}
-			} else {
-				$fail_count++;
 			}
-			
+			($sid) = $sid =~ /(S-1-5-21-\S+)-\d+\s+/;
+			unless (defined($sid)) {
+				print "[E] Can't get SID using either a null username or the username \"$global_username\"\n";
+				exit 1;
+			}
+			$logon = "username '', password ''"
+		}
+		unless (defined($sid)) {
+			print "[E] Couldn't find SID.  Aborting RID cycling attempt.\n\n";
+			return 1;
+		}
+		print "[+] Got SID: $sid using $logon\n";
+		
+		# RID Cycle;
+		foreach my $rid_range (split(",", $global_rid_range)) {
+			my ($start_rid, $end_rid);
+		
+			# Check range is of form n-m (n,m integers)
+			if ($rid_range =~ /\d+-\d+/) {
+				($start_rid, $end_rid) = $rid_range =~ /^(\d+)-(\d+)$/;
+				
+			# Check range is of form n (n integer)
+			} elsif ($rid_range =~ /^\d+$/) {
+				($start_rid, $end_rid) = ($rid_range, $rid_range);
+		
+			# Invalid range
+			} else {
+				print "WARNING: RID range $rid_range isn't valid.  Should be like 10-20 or 1199.  Ignoring this range\n";
+				next;
+			}
+		
+			# Check we have an ascending range
+			if ($start_rid > $end_rid) {	
+				print "WARNING: RID range $rid_range seems to be reversed.  Automatically reversing.\n";
+				($start_rid, $end_rid) = ($end_rid, $start_rid);
+			}
+		
 			if ($global_search_until_fail) {
-				last if $fail_count > $global_fail_limit;
+				$end_rid = 500000;
+			}
+	
+			my $fail_count = 0;
+			foreach my $rid ($start_rid..$end_rid) {
+				my $output = `rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c "lookupsids $sid-$rid" 2>&1`;
+				my ($sid_and_user) = $output =~ /(S-\d+-\d+-\d+-[\d-]+\s+[^\)]+\))/;
+				if ($sid_and_user) {
+					$sid_and_user =~ s/\(1\)/(Local User)/;
+					$sid_and_user =~ s/\(2\)/(Domain Group)/;
+					$sid_and_user =~ s/\(2\)/(Domain User)/;
+					$sid_and_user =~ s/\(4\)/(Local Group)/;
+	
+					# Samba servers sometimes claim to have user accounts
+					# with the same name as the UID/RID.  We don't report these.
+					if ($sid_and_user =~ /-(\d+) .*\\\1 \(/) {
+						$fail_count++;
+					} else {
+						print "$sid_and_user\n";
+						$fail_count = 0;
+						get_user_details_from_rid($rid) if $sid_and_user =~ /\((Local|Domain) User\)/;
+						get_group_details_from_rid($rid) if $sid_and_user =~ /\((Local|Domain) Group\)/;
+					}
+				} else {
+					$fail_count++;
+				}
+				
+				if ($global_search_until_fail) {
+					last if $fail_count > $global_fail_limit;
+				}
 			}
 		}
-	}
-	print "\n";
+		print "\n";
+	} # foreach sid
 }
 
 sub enum_users {

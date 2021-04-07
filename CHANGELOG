@@ -1,4 +1,11 @@
 
+2007-12-05 Enum4Linux v0.8.1
+
+* nmblookup/nbtstat output now contains human-readable
+  descriptions.
+* Clearer messages about why RID cycling has failed 
+  (either can't get SID or RID cycling not allowed).
+
 2007-12-05 Enum4Linux v0.8.0
 
 * Added -a option to try all simple enumeration.  You don't

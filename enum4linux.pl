@@ -51,7 +51,7 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.0";
+my $VERSION="0.8.1";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
@@ -68,6 +68,69 @@ my $global_known_username_string = "administrator,guest,krbtgt,domain admins,roo
 my @dependent_programs = qw(nmblookup net rpcclient smbclient);
 my $null_session_test = 0;
 my %opts;
+
+###############################################################################
+# The following  mappings for nmblookup (nbtstat) status codes to human readable
+# format is taken from nbtscan 1.5.1 "statusq.c".  This file in turn
+# was derived from the Samba package which contains the following
+# license:
+#    Unix SMB/Netbios implementation
+#    Version 1.9
+#    Main SMB server routine
+#    Copyright (C) Andrew Tridgell 1992-199
+# 
+#    This program is free software; you can redistribute it and/or modif
+#    it under the terms of the GNU General Public License as published b
+#    the Free Software Foundation; either version 2 of the License, o
+#    (at your option) any later version
+# 
+#    This program is distributed in the hope that it will be useful
+#    but WITHOUT ANY WARRANTY; without even the implied warranty o
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See th
+#    GNU General Public License for more details
+# 
+#    You should have received a copy of the GNU General Public Licens
+#    along with this program; if not, write to the Free Softwar
+#    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA
+
+my @nbt_info = (
+["__MSBROWSE__", "01", 0, "Master Browser"],
+["INet~Services", "1C", 0, "IIS"],
+["IS~", "00", 1, "IIS"],
+["", "00", 1, "Workstation Service"],
+["", "01", 1, "Messenger Service"],
+["", "03", 1, "Messenger Service"],
+["", "06", 1, "RAS Server Service"],
+["", "1F", 1, "NetDDE Service"],
+["", "20", 1, "File Server Service"],
+["", "21", 1, "RAS Client Service"],
+["", "22", 1, "Microsoft Exchange Interchange(MSMail Connector)"],
+["", "23", 1, "Microsoft Exchange Store"],
+["", "24", 1, "Microsoft Exchange Directory"],
+["", "30", 1, "Modem Sharing Server Service"],
+["", "31", 1, "Modem Sharing Client Service"],
+["", "43", 1, "SMS Clients Remote Control"],
+["", "44", 1, "SMS Administrators Remote Control Tool"],
+["", "45", 1, "SMS Clients Remote Chat"],
+["", "46", 1, "SMS Clients Remote Transfer"],
+["", "4C", 1, "DEC Pathworks TCPIP service on Windows NT"],
+["", "52", 1, "DEC Pathworks TCPIP service on Windows NT"],
+["", "87", 1, "Microsoft Exchange MTA"],
+["", "6A", 1, "Microsoft Exchange IMC"],
+["", "BE", 1, "Network Monitor Agent"],
+["", "BF", 1, "Network Monitor Application"],
+["", "03", 1, "Messenger Service"],
+["", "00", 0, "Domain/Workgroup Name"],
+["", "1B", 1, "Domain Master Browser"],
+["", "1C", 0, "Domain Controllers"],
+["", "1D", 1, "Master Browser"],
+["", "1E", 0, "Browser Service Elections"],
+["", "2B", 1, "Lotus Notes Server Service"],
+["IRISMULTICAST", "2F", 0, "Lotus Notes"],
+["IRISNAMESERVER", "33", 0, "Lotus Notes"],
+['Forte_$ND800ZA', "20", 1, "DCA IrmaLan Gateway Server Service"]
+);
+####################### end of nbtscan-derrived code ############################
 
 my $usage =<<USAGE;
 enum4linux v$VERSION \(http://www.portcullis-security.com/tools/\)
@@ -252,8 +315,8 @@ print "\n";
 
 # Basic enumeration, check session
 get_workgroup();
-get_domain_sid();
 get_nbtstat()          if $opts{'n'};
+get_domain_sid();
 make_session();
 get_os_info()          if $opts{'o'};
 
@@ -276,8 +339,9 @@ print "enum4linux complete on " . scalar(localtime) . "\n\n";
 
 sub get_nbtstat {
 	print "----- Nbtstat Information for $global_target -----\n";
-	system("nmblookup -A '$global_target'");
-	print "\n";
+	my $output = `nmblookup -A '$global_target' 2>&1`;
+	$output = nbt_to_human($output);
+	print "$output\n\n";
 }
 
 sub get_domain_sid {
@@ -510,6 +574,25 @@ sub enum_shares {
 			print "$shares";
 		}
 	}
+
+	print "\n----- Attempting to map to shares on $global_target -----\n";
+	my @shares = $shares =~ /\n\s+(\S+)\s+(?:Disk|IPC|Printer)/igs;
+	foreach my $share (@shares) {
+		my $command = "smbclient //$global_target/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
+		print "[V] Attempting map to share //$global_target/$share with command: $command\n" if $verbose;
+		my $output = `$command`;
+		print "//$global_target/$share\t";
+		if ($output =~ /NT_STATUS_ACCESS_DENIED listing/) {
+			print "Mapping: OK\tListing: DENIED\n";
+		} elsif ($output =~ /tree connect failed: NT_STATUS_ACCESS_DENIED/) {
+			print "Mapping: DENIED, Listing: N/A\n";
+		} elsif ($output =~ /\n\s+\.\.\s+D.*\d{4}\n/) {
+			print "Mapping: OK, Listing: OK\n";
+		} else {
+			print "[E] Can't understand response:\n";
+			print $output;
+		}
+	}
 	print "\n";
 }
 
@@ -549,6 +632,7 @@ sub enum_users_rids {
 	
 	my $sid;
 	my $logon;
+	my $cleansid;
 	# Get SID - try other known usernames if necessary
 	foreach my $known_username (@global_known_usernames) {
 		my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c \"lookupnames '$known_username'\" 2>&1";
@@ -556,25 +640,26 @@ sub enum_users_rids {
 		print "[I] Assuming that user \"$known_username\" exists\n";
 		$logon = "username '$global_username', password '$global_password'";
 		$sid=`$command`;
-		if ($sid =~ /error: NT_STATUS_ACCESS_DENIED/) {
-			print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED\n";
+		if ($sid =~ /NT_STATUS_ACCESS_DENIED/) {
+			print "[E] Couldn't get SID: NT_STATUS_ACCESS_DENIED.  RID cycling not possible.\n";
 			next;
 		} elsif ($sid =~ /NT_STATUS_NONE_MAPPED/) {
-			print "[E] User \"$known_username\" doesn't exist.\n";
+			print "[E] User \"$known_username\" doesn't exist.  User enumeration should be possible, but SID needed...\n";
 			next;
 		} elsif ($sid =~ /S-1-5-21-\S+-\d+\s+/) {
+			($cleansid) = $sid =~ /(S-1-5-21-\S+)-\d+\s+/;
+			last;
+		} elsif ($sid =~ /S-1-5-\S+-\d+\s+/) {
+			($cleansid) = $sid =~ /(S-1-5-\S+)-\d+\s+/;
 			last;
 		} elsif ($sid =~ /S-1-22-\S+-\d+\s+/) {
+			($cleansid) = $sid =~ /(S-1-22-\S+)-\d+\s+/;
 			last;
 		} else {
 			next;
 		}
 	}
 
-	my ($cleansid) = $sid =~ /(S-1-5-21-\S+)-\d+\s+/;
-	unless (defined($cleansid)) {
-		($cleansid) = $sid =~ /(S-1-22-\S+)-\d+\s+/;
-	}
 	$sid = $cleansid;
 	if (! defined($sid) and $global_username) {
 		print "[V] WARNING: Can\'t get SID.  Maybe none of the 'known' users really exist.  Try others with -k.  Trying null session.\n" if $verbose;
@@ -736,4 +821,36 @@ sub get_printer_info {
 		print "[E] No info found\n\n";
 	}
 
+}
+
+sub nbt_to_human {
+	my $nbt_in = shift; # multi-line
+	my @nbt_in = split (/\n/, $nbt_in);
+	my @nbt_out = ();
+	foreach my $line (@nbt_in) {
+		if ($line =~ /\s+(\S+)\s+<(..)>\s+-\s+?(<GROUP>)?\s+?[A-Z]/) {
+			my $line_val = $1;
+			my $line_code = uc $2;
+			my $line_group = defined($3) ? 0 : 1; # opposite
+
+			foreach my $info_aref (@nbt_info) {
+				my ($pattern, $code, $group, $desc) = @$info_aref;
+				# print "Matching: line=\"$line\", val=$line_val, code=$line_code, group=$line_group against pattern=$pattern, code=$code, group=$group, desc=$desc\n";
+				if ($pattern) {
+					if ($line_val =~ /$pattern/ and $line_code eq $code and $line_group eq $group) {
+						push @nbt_out, "$line $desc";
+						last;
+					}
+				} else {
+					if ($line_code eq $code and $line_group eq $group) {
+						push @nbt_out, "$line $desc";
+						last;
+					}
+				}	
+			}
+		} else {
+			push @nbt_out, $line;
+		}
+	}	
+	return join "\n", @nbt_out;
 }

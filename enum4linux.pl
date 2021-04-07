@@ -470,7 +470,7 @@ sub get_os_info {
 			print_plus("Got OS info for $global_target from smbclient: ");
 			print "$os_info\n";
 		} else {
-			print_error(" Can't get OS info with smbclient\n");
+			print_error("Can't get OS info with smbclient\n");
 		}
 	}
 

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 # enum4linux - Windows enumeration tool for Linux
-# Copyright (C) 2008  Mark Lowe
+# Copyright (C) 2011  Mark Lowe
 # 
 # This tool may be used for legal purposes only.  Users take full responsibility
 # for any actions performed using this tool.  The author accepts no liability
@@ -46,7 +46,7 @@ use File::Basename;
 use Data::Dumper;
 use Scalar::Util qw(tainted);
 
-my $VERSION="0.8.4";
+my $VERSION="0.8.5";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet
@@ -458,6 +458,26 @@ sub enum_password_policy {
 	} else {
 		print "[E] polenum.py gave no output.\n";
 	}
+	my $command = "rpcclient -W $global_workgroup -U'$global_username'\%'$global_password' '$global_target' -c \"getdompwinfo\" 2>&1";
+	print "[V] Attempting to get Password Policy info with command: $command\n" if $verbose;
+	my $passpol_info = `$command`;
+	chomp $passpol_info;
+	print "\n";
+	if (defined($passpol_info) and $passpol_info !~ /ACCESS_DENIED/) {
+		print "[+] Retieved partial password policy with rpcclient:\n\n";
+		if ($passpol_info =~ /password_properties: 0x[0-9a-fA-F]{7}0/) {
+			print "Password Complexity: Disabled\n";
+		} elsif ($passpol_info =~ /password_properties: 0x[0-9a-fA-F]{7}1/) {
+			print "Password Complexity: Enabled\n";
+		}
+		if ($passpol_info =~ /min_password_length: (\d+)/) {
+			my $minlen = $1;
+			print "Minimum Password Length: $minlen\n";
+		}
+	} else {
+		print "[E] Failed to get password policy with rpcclient\n";
+	}
+	print "\n";
 }
 
 sub enum_lsa_policy {

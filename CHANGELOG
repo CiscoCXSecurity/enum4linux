@@ -1,3 +1,8 @@
+2012-11-30 Enum4linux v0.8.9
+
+* -d option decodes some of the acb_info field including
+  if account is disabled, password expired, acct locked.
+
 2011-06-16 Enum4linux v0.8.8
 
 * Bug fix: -w option should now work better.  Allows 

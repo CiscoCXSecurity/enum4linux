@@ -48,7 +48,7 @@ use Data::Dumper;
 use Scalar::Util qw(tainted);
 use Term::ANSIColor;
 
-my $VERSION="0.8.9";
+my $VERSION="0.9.0";
 my $verbose = 0;
 my $debug = 0;
 my $global_fail_limit = 1000;     # no command line option yet

@@ -382,9 +382,16 @@ sub get_workgroup {
 		$global_workgroup = `nmblookup -A '$global_target'`; # Global var.  Erg!
 		($global_workgroup) = $global_workgroup =~ /\s+(\S+)\s+<00> - <GROUP>/s;
 		unless (defined($global_workgroup)) {
-			print "[E] Can\'t find workgroup/domain\n";
-			print "\n";
-			return undef;
+			# dc.example.org. hostmaster.example.org. 1 900 600 86400 3600
+			$global_workgroup = `dig +short 0.in-addr.arpa`;
+			($global_workgroup) = $global_workgroup =~ /.*\. hostmaster\.(.*?)\. .*/s;
+			if (defined($global_workgroup)) {
+				print "[+] Domain guessed: $global_workgroup\n";
+			} else {
+				print "[E] Can\'t find workgroup/domain\n";
+				print "\n";
+				return undef;
+			}
 		}
 		unless (defined($global_workgroup) and $global_workgroup =~ /^[A-Za-z0-9_\.\-]+$/) {
 			print "ERROR: Workgroup \"$global_workgroup\"contains some illegal characters\n";

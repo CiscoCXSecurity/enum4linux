@@ -299,7 +299,7 @@ if (defined($global_workgroup)) {
 	if ($global_workgroup =~ /^([a-zA-Z0-9\.-_]*)$/) {
 		$global_workgroup = $1;
 	} else {
-		print "ERROR: Workgroup \"$global_workgroup\"contains some illegal characters\n";
+		print "ERROR: Workgroup \"$global_workgroup\" contains some illegal characters\n";
 		exit 1;
 	}
 }

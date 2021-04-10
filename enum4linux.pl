@@ -447,6 +447,9 @@ sub make_session {
 	print_verbose("Attempting to make null session using command: $command\n") if $verbose;
 	my $os_info = `$command`;
 	chomp $os_info;
+	if ($os_info =~ /protocol negotiation failed: NT_STATUS_CONNECTION_RESET/) {
+		print_error("Protocol mismatch.  smbclient doesn\'t support the same protocol versions as the server.  You likely need to install a later version of Samba.\n");
+	}
 	if ($os_info =~ /case_sensitive/) {
 		print_plus("Server $global_target allows sessions using username '$global_username', password '$global_password'\n");
 	} else {

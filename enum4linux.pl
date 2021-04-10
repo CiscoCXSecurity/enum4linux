@@ -219,7 +219,7 @@ if ($opts{'h'}) {
 
 # Read host and untaint
 my $global_target = shift or die $usage;
-if ($global_target =~ /^([a-zA-Z0-9\._-]+)$/) {
+if ($global_target =~ /^([a-zA-Z0-9\._\-]+)$/) {
 	$global_target = $1;
 } else {
 	print "ERROR: Target hostname \"$global_target\" contains some illegal characters\n";
@@ -296,7 +296,7 @@ if ($dependency_error) {
 
 # Untaint workgroup if supplied on command line
 if (defined($global_workgroup)) {
-	if ($global_workgroup =~ /^([a-zA-Z0-9\.-_]*)$/) {
+	if ($global_workgroup =~ /^([a-zA-Z0-9\.\-_]*)$/) {
 		$global_workgroup = $1;
 	} else {
 		print "ERROR: Workgroup \"$global_workgroup\" contains some illegal characters\n";
@@ -386,7 +386,7 @@ sub get_workgroup {
 			print "\n";
 			return undef;
 		}
-		unless (defined($global_workgroup) and $global_workgroup =~ /^[A-Za-z0-9_\.-]+$/) {
+		unless (defined($global_workgroup) and $global_workgroup =~ /^[A-Za-z0-9_\.\-]+$/) {
 			print "ERROR: Workgroup \"$global_workgroup\"contains some illegal characters\n";
 			exit 1;
 		}
@@ -678,7 +678,7 @@ sub enum_shares_unauth {
 	
 	foreach my $share (@shares) {
 		# Untaint $share
-		if ($share =~ /^([a-zA-Z0-9\._\$-]+)$/) {
+		if ($share =~ /^([a-zA-Z0-9\._\$\-]+)$/) {
 			$share = $1;
 		} else {
 			print "ERROR: Share name $share contains some illegal characters\n";

@@ -275,7 +275,7 @@ foreach my $prog (@dependent_programs) {
 		print "ERROR: $prog is not in your path.  Check that samba package is installed\n";
 		$dependency_error = 1;
 	} else {
-		print "[V] Dependent program \"$prog\" found in $which_output\n" if $verbose;
+		print_verbose("Dependent program \"$prog\" found in $which_output\n") if $verbose;
 	}
 }
 foreach my $prog (@optional_dependent_programs) {
@@ -285,7 +285,7 @@ foreach my $prog (@optional_dependent_programs) {
 		print "WARNING: $prog is not in your path.  Check that package is installed and your PATH is sane.\n";
 		$odp_present{$prog} = 0;
 	} else {
-		print "[V] Dependent program \"$prog\" found in $which_output\n" if $verbose;
+		print_verbose("Dependent program \"$prog\" found in $which_output\n") if $verbose;
 		$odp_present{$prog} = 1;
 	}
 }
@@ -358,7 +358,7 @@ sub get_nbtstat {
 sub get_domain_sid {
 	print_heading("Getting domain SID for $global_target");
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' $global_target -c 'lsaquery' 2>&1";
-	print "[V] Attempting to get domain SID with command: $command\n" if $verbose;
+	print_verbose("Attempting to get domain SID with command: $command\n") if $verbose;
 	my $domain_sid_text = `$command`;
 	chomp $domain_sid_text;
 	print $domain_sid_text;
@@ -375,7 +375,7 @@ sub get_domain_sid {
 # Get workgroup from nbstat info - we need this for lots of rpcclient calls
 sub get_workgroup {
 	print_heading("Enumerating Workgroup/Domain on $global_target");
-	print colored("[V] Attempting to get domain name with command: nmblookup -A '$global_target'\n", 'yellow') if $verbose;
+	print_verbose("Attempting to get domain name with command: nmblookup -A '$global_target'\n") if $verbose;
 
 	# Workgroup might already be known - e.g. from command line or from get_os_info()
 	unless ($global_workgroup) {
@@ -390,13 +390,13 @@ sub get_workgroup {
 				print "[+] Domain guessed: $global_workgroup\n";
 			} else {
 				$global_workgroup = "WORKGROUP";
-				print_error(" Can\'t find workgroup/domain\n");
+				print_error("Can\'t find workgroup/domain\n");
 				print "\n";
 				return;
 			}
 		}
 		unless (defined($global_workgroup) and $global_workgroup =~ /^[A-Za-z0-9_\.\-]+$/) {
-			print "ERROR: Workgroup \"$global_workgroup\"contains some illegal characters\n";
+			print_error("Workgroup \"$global_workgroup\"contains some illegal characters\n");
 			exit 1;
 		}
 	}
@@ -408,16 +408,16 @@ sub get_workgroup {
 sub get_ldapinfo {
 	print_heading("Getting information via LDAP for $global_target");
 	my $command = "ldapsearch -x -h '$global_target' -p 389 -s base namingContexts 2>&1";
-	print "[V] Attempting to long domain name: $command\n" if $verbose;
+	print_verbose("Attempting to long domain name: $command\n") if $verbose;
 	unless ($odp_present{"ldapsearch"}) {
-		print_error(" Dependent program \"ldapsearch\" not present.  Skipping this check.  Install ldapsearch to fix.\n\n");
+		print_error("Dependent program \"ldapsearch\" not present.  Skipping this check.  Install ldapsearch to fix.\n\n");
 		return 0;
 	}
 
 	my $output = `$command`;
 
 	if ($output =~ /ldap_sasl_bind/) {
-		print_error(" Connection error\n");
+		print_error("Connection error\n");
 		return 0;
 	}
 	my $parent = 0;
@@ -444,13 +444,13 @@ sub get_ldapinfo {
 sub make_session {
 	print_heading("Session Check on $global_target");
 	my $command = "smbclient -W '$global_workgroup' //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'help' 2>&1";
-	print "[V] Attempting to make null session using command: $command\n" if $verbose;
+	print_verbose("Attempting to make null session using command: $command\n") if $verbose;
 	my $os_info = `$command`;
 	chomp $os_info;
 	if ($os_info =~ /case_sensitive/) {
 		print_plus("Server $global_target allows sessions using username '$global_username', password '$global_password'\n");
 	} else {
-		print_error(" Server doesn't allow session using username '$global_username', password '$global_password'.  Aborting remainder of tests.\n");
+		print_error("Server doesn't allow session using username '$global_username', password '$global_password'.  Aborting remainder of tests.\n");
 		exit 1;
 	}
 
@@ -467,7 +467,7 @@ sub get_os_info {
 
 
 	my $command = "smbclient -W '$global_workgroup' //'$global_target'/ipc\$ -U'$global_username'\%'$global_password' -c 'q' 2>&1";
-	print "[V] Attempting to get OS info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get OS info with command: $command\n") if $verbose;
 	my $os_info = `$command`;
 	chomp $os_info;
 
@@ -482,11 +482,11 @@ sub get_os_info {
 	}
 
 	$command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'srvinfo' '$global_target' 2>&1";
-	print "[V] Attempting to get OS info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get OS info with command: $command\n") if $verbose;
 	$os_info = `$command`;
 	if (defined($os_info)) {
 		if ($os_info =~ /error: NT_STATUS_ACCESS_DENIED/) {
-			print_error(" Can't get OS info with srvinfo\n");
+			print_error("Can't get OS info with srvinfo\n");
 		} else {
 			print_plus("Got OS info for $global_target from srvinfo: ");
 			print "$os_info\n";
@@ -498,26 +498,26 @@ sub enum_password_policy {
 	print_heading("Password Policy Information for $global_target");
 	my $command = "polenum '$global_username':'$global_password'\@'$global_target' 2>&1";
 	unless ($odp_present{"polenum"}) {
-		print_error(" Dependent program \"polenum\" not present.  Skipping this check.  Download polenum from http://labs.portcullis.co.uk/application/polenum/\n\n");
+		print_error("Dependent program \"polenum\" not present.  Skipping this check.  Download polenum from http://labs.portcullis.co.uk/application/polenum/\n\n");
 		return 0;
 	}
-	print "[V] Attempting to get Password Policy info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get Password Policy info with command: $command\n") if $verbose;
 	my $passpol_info = `$command`;
 	chomp $passpol_info;
 	if (defined($passpol_info)) {
 		if ($passpol_info =~ /Account Lockout Threshold/) {
 			print $passpol_info;
 		} elsif ($passpol_info =~ /Error Getting Password Policy: Connect error/) {
-			print_error(" Can't connect to host with supplied credentials.\n");
+			print_error("Can't connect to host with supplied credentials.\n");
 		} else {
-			print_error(" Unexpected error from polenum:\n");
+			print_error("Unexpected error from polenum:\n");
 			print $passpol_info;
 		}
 	} else {
-		print_error(" polenum gave no output.\n");
+		print_error("polenum gave no output.\n");
 	}
 	$command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c \"getdompwinfo\" 2>&1";
-	print "[V] Attempting to get Password Policy info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get Password Policy info with command: $command\n") if $verbose;
 	$passpol_info = `$command`;
 	chomp $passpol_info;
 	print "\n";
@@ -533,24 +533,24 @@ sub enum_password_policy {
 			print "Minimum Password Length: $minlen\n";
 		}
 	} else {
-		print_error(" Failed to get password policy with rpcclient\n");
+		print_error("Failed to get password policy with rpcclient\n");
 	}
 	print "\n";
 }
 
 sub enum_lsa_policy {
 	print_heading("LSA Policy Information on $global_target");
-	print_error(" Internal error.  Not implmented in this version of enum4linux.\n");
+	print_error("Not implemented in this version of enum4linux.\n");
 }
 
 sub enum_machines {
 	print_heading("Machine Enumeration on $global_target");
-	print_error(" Internal error.  Not implmented in this version of enum4linux.\n");
+	print_error("Not implemented in this version of enum4linux.\n");
 }
 
 sub enum_names {
 	print_heading("Name Enumeration on $global_target");
-	print_error(" Internal error.  Not implmented in this version of enum4linux.\n");
+	print_error("Not implemented in this version of enum4linux.\n");
 }
 
 sub enum_groups {
@@ -559,18 +559,18 @@ sub enum_groups {
 		# Get list of groups
 		my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c 'enumalsgroups $grouptype' 2>&1";
 		if ($grouptype eq "domain") {
-			print "[V] Getting local groups with command: $command\n" if $verbose;
+			print_verbose("Getting local groups with command: $command\n") if $verbose;
 			print_plus(" Getting local groups:\n");
 		} else {
-			print "[V] Getting $grouptype groups with command: $command\n" if $verbose;
-			print_plus(" Getting $grouptype groups:\n");
+			print_verbose("Getting $grouptype groups with command: $command\n") if $verbose;
+			print_plus("Getting $grouptype groups:\n");
 		}
 		my $groups_string = `$command`;
 		if ($groups_string =~ /error: NT_STATUS_ACCESS_DENIED/) {
 			if ($grouptype eq "domain") {
-				print_error(" Can't get local groups: NT_STATUS_ACCESS_DENIED\n");
+				print_error("Can't get local groups: NT_STATUS_ACCESS_DENIED\n");
 			} else {
-				print_error(" Can't get $grouptype groups: NT_STATUS_ACCESS_DENIED\n");
+				print_error("Can't get $grouptype groups: NT_STATUS_ACCESS_DENIED\n");
 			}
 		} else {
 			($groups_string) = $groups_string =~ /(group:.*)/s;
@@ -590,7 +590,7 @@ sub enum_groups {
 			$rid_of_group{$groupname} =~ s/^0x//;
 			$rid_of_group{$groupname} = hex($rid_of_group{$groupname});
 			$command = "net rpc group members '$groupname' -W '$global_workgroup' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
-			print "[V] Running command: $command\n" if $verbose;
+			print_verbose("Running command: $command\n") if $verbose;
 			my $members = `$command`;
 			my @members = split "\n", $members;
 			foreach my $m (@members) {
@@ -610,12 +610,12 @@ sub enum_groups {
 sub enum_dom_groups {
 	# Get list of groups
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c \"enumdomgroups\" 2>&1";
-	print "[V] Getting domain groups with command: $command\n" if $verbose;
+	print_verbose("Getting domain groups with command: $command\n") if $verbose;
 	print_plus(" Getting domain groups:\n");
 
 	my $groups_string = `$command`;
 	if ($groups_string =~ /error: NT_STATUS_ACCESS_DENIED/) {
-		print_error(" Can't get domain groups: NT_STATUS_ACCESS_DENIED\n");
+		print_error("Can't get domain groups: NT_STATUS_ACCESS_DENIED\n");
 	} else {
 		($groups_string) = $groups_string =~ /(group:.*)/s;
 		$groups_string = "" unless defined($groups_string);
@@ -631,7 +631,7 @@ sub enum_dom_groups {
 		$rid_of_group{$groupname} =~ s/^0x//;
 		$rid_of_group{$groupname} = hex($rid_of_group{$groupname});
 		$command = "net rpc group members '$groupname' -W '$global_workgroup' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1\n";
-		print "[V] Running command: $command\n" if $verbose;
+		print_verbose("Running command: $command\n") if $verbose;
 		my $members = `$command`;
 		my @members = split "\n", $members;
 		foreach my $m (@members) {
@@ -649,30 +649,30 @@ sub enum_dom_groups {
 
 sub enum_groups_unauth {
 	print_heading("Groups on $global_target via RID cycling");
-	print_error(" INTERNAL ERROR.  Not implmented yet.  Maybe in the next version.\n");
+	print_error("Not implemented in this version of enum4linux.\n");
 }
 
 sub enum_shares {
 	# Share enumeration
 	print_heading("Share Enumeration on $global_target");
-	print "[V] Attempting to get share list using authentication\n" if $verbose;
+	print_verbose("Attempting to get share list using authentication\n") if $verbose;
 	# my $shares = `net rpc share -W '$global_workgroup' -I '$global_target' -U'$global_username'\%'$global_password' 2>&1`;
 	my $command = "smbclient -W '$global_workgroup' -L //'$global_target' -U'$global_username'\%'$global_password' 2>&1";
 	my $shares = `$command`;
 	if (defined($shares)) {
 		if ($shares =~ /NT_STATUS_ACCESS_DENIED/) {
-			print_error(" Can't list shares: NT_STATUS_ACCESS_DENIED\n");
+			print_error("Can't list shares: NT_STATUS_ACCESS_DENIED\n");
 		} else {
 			print "$shares";
 		}
 	}
 
-	print_plus(" Attempting to map shares on $global_target\n");
+	print_plus("Attempting to map shares on $global_target\n");
 	my @shares = $shares =~ /^[\t ]*?([ \S]+?)[\t ]*?(?:Disk|IPC|Printer)[^\n]*/gms;
 	foreach my $share (@shares) {
 		$share =~ s/'/'\\''/g;
 		my $command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
-		print "[V] Attempting map to share //$global_target/$share with command: $command\n" if $verbose;
+		print_verbose("Attempting map to share //$global_target/$share with command: $command\n") if $verbose;
 		my $output = `$command`;
 		print "//$global_target/$share\t";
 		if ($output =~ /NT_STATUS_ACCESS_DENIED listing/) {
@@ -686,7 +686,7 @@ sub enum_shares {
 			print colored("Listing: ", 'magenta');
 			print "OK\n";
 		} else {
-			print_error(" Can't understand response:\n");
+			print_error("Can't understand response:\n");
 			print $output;
 		}
 	}
@@ -694,7 +694,7 @@ sub enum_shares {
 
 sub enum_shares_unauth {
 	print_heading("Brute Force Share Enumeration on $global_target");
-	print "[V] Attempting to get share list using bruteforcing\n" if $verbose;
+	print_verbose("Attempting to get share list using bruteforcing\n") if $verbose;
 	my $shares_file = $global_share_file;
 	open SHARES, "<$shares_file" or die "[E] Can't open share list file $shares_file: $!\n";
 	my @shares = <SHARES>;
@@ -705,7 +705,7 @@ sub enum_shares_unauth {
 		if ($share =~ /^([a-zA-Z0-9\._\$\-]+)$/) {
 			$share = $1;
 		} else {
-			print_error(" Share name $share contains some illegal characters\n");
+			print_error("Share name $share contains some illegal characters\n");
 			exit 1;
 		}
 
@@ -732,15 +732,15 @@ sub enum_users_rids {
 	# Get SID - try other known usernames if necessary
 	foreach my $known_username (@global_known_usernames) {
 		my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c 'lookupnames $known_username' 2>&1";
-		print "[V] Attempting to get SID from $global_target with command: $command\n" if $verbose;
-		print "[V] Assuming that user \"$known_username\" exists\n" if $verbose;
+		print_verbose("Attempting to get SID from $global_target with command: $command\n") if $verbose;
+		print_verbose("Assuming that user \"$known_username\" exists\n") if $verbose;
 		$logon = "username '$global_username', password '$global_password'";
 		$sid = `$command`;
 		if ($sid =~ /NT_STATUS_ACCESS_DENIED/) {
 			print_error("Couldn't get SID: NT_STATUS_ACCESS_DENIED.  RID cycling not possible.\n");
 			last;
 		} elsif ($sid =~ /NT_STATUS_NONE_MAPPED/) {
-			print "[V] User \"$known_username\" doesn't exist.  User enumeration should be possible, but SID needed...\n" if $verbose;
+			print_verbose("User \"$known_username\" doesn't exist.  User enumeration should be possible, but SID needed...\n") if $verbose;
 			next;
 		} elsif ($sid =~ /S-1-5-21-[\d-]+-\d+\s+/) {
 			($cleansid) = $sid =~ /(S-1-5-21-[\d-]+)-\d+\s+/;
@@ -773,10 +773,10 @@ sub enum_users_rids {
 
 	# Get some more SIDs (hopefully)
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c lsaenumsid 2>&1";
-	print "[V] Attempting to get SIDs from $global_target with command: $command\n" if $verbose;
+	print_verbose("Attempting to get SIDs from $global_target with command: $command\n") if $verbose;
 	my $sids = `$command`;
 	foreach my $sid ($sids =~ /(S-[0-9-]+)/g) {
-		print "[V] Processing SID $sid\n" if $verbose;
+		print_verbose("Processing SID $sid\n") if $verbose;
 		if ($sid =~ /NT_STATUS_ACCESS_DENIED/) {
 			print_error("Couldn't get SID: NT_STATUS_ACCESS_DENIED.  RID cycling not possible.\n");
 			next;
@@ -811,11 +811,11 @@ sub enum_users_rids {
 
 	foreach my $sid (keys %sids) {
 		if (! defined($sid) and $global_username) {
-			print "[V] WARNING: Can\'t get SID.  Maybe none of the 'known' users really exist.  Try others with -k.  Trying null session.\n" if $verbose;
+			print_verbose("WARNING: Can\'t get SID.  Maybe none of the 'known' users really exist.  Try others with -k.  Trying null session.\n") if $verbose;
 			foreach my $known_username (@global_known_usernames) {
 				my $command = "rpcclient -W '$global_workgroup' -U% '$global_target' -c 'lookupnames $known_username' 2>&1";
 				print_info("Assuming that user $known_username exists\n");
-				print "[V] Trying null username and password: $command\n" if $verbose;
+				print_verbose("Trying null username and password: $command\n") if $verbose;
 				$sid=`$command`;
 				if ($sid =~ /error: NT_STATUS_ACCESS_DENIED/) {
 					print_error("Couldn't get SID: NT_STATUS_ACCESS_DENIED\n");
@@ -907,11 +907,11 @@ sub enum_users_rids {
 sub enum_users {
 	print_heading("Users on $global_target");
 	my $command = "rpcclient -W '$global_workgroup' -c querydispinfo -U'$global_username'\%'$global_password' '$global_target' 2>&1";
-	print "[V] Attempting to get userlist with command: $command\n" if $verbose;
+	print_verbose("Attempting to get userlist with command: $command\n") if $verbose;
 	my $users = `$command`;
 	my $continue = 1;
 	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
-		print_error(" Couldn't find users using querydispinfo: NT_STATUS_ACCESS_DENIED\n");
+		print_error("Couldn't find users using querydispinfo: NT_STATUS_ACCESS_DENIED\n");
 	} else {
 		($users) = $users =~ /(index:.*)/s;
 		print $users;
@@ -922,10 +922,10 @@ sub enum_users {
 
 	print "\n";
 	$command = "rpcclient -W '$global_workgroup' -c enumdomusers -U'$global_username'\%'$global_password' '$global_target' 2>&1";
-	print "[V] Attempting to get userlist with command: $command\n" if $verbose;
+	print_verbose("Attempting to get userlist with command: $command\n") if $verbose;
 	$users = `$command`;
 	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
-		print_error(" Couldn't find users using enumdomusers: NT_STATUS_ACCESS_DENIED\n");
+		print_error("Couldn't find users using enumdomusers: NT_STATUS_ACCESS_DENIED\n");
 	} else {
 		($users) = $users =~ /(user:.*)/s;
 		print $users;
@@ -945,30 +945,30 @@ sub enum_users {
 sub get_group_details_from_rid {
 	my $rid = shift;
 	if (invalid_rid($rid)) {
-		print_error(" Invalid rid passed: $rid\n");
+		print_error("Invalid RID passed: $rid\n");
 		return 0;
 	}
 	return unless $global_detailed;
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'querygroup $rid' '$global_target' 2>&1";
-	print "[V] Attempting to get detailed group info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get detailed group info with command: $command\n") if $verbose;
 	my $group_info = `$command`;
 	($group_info) = $group_info =~ /([^\n]*Group Name.*Num Members[^\n]*)/s;
 	if (defined($group_info)) {
 		print "$group_info\n\n";
 	} else {
-		print_error(" No info found\n\n");
+		print_error("No info found\n\n");
 	}
 }
 
 sub get_user_details_from_rid {
 	my $rid = shift;
 	if (invalid_rid($rid)) {
-		print_error(" Invalid rid passed: $rid\n");
+		print_error("Invalid RID passed: $rid\n");
 		return 0;
 	}
 	return unless $global_detailed;
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'queryuser $rid' '$global_target' 2>&1";
-	print "[V] Attempting to get detailed user info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get detailed user info with command: $command\n") if $verbose;
 	my $user_info = `$command`;
 	($user_info) = $user_info =~ /([^\n]*User Name.*logon_hrs[^\n]*)/s;
 	print "$user_info\n" if defined($user_info);
@@ -1032,13 +1032,13 @@ sub invalid_rid {
 sub get_printer_info {
 	print_heading("Getting printer info for $global_target");
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'enumprinters' '$global_target' 2>&1";
-	print "[V] Attempting to get printer info with command: $command\n" if $verbose;
+	print_verbose("Attempting to get printer info with command: $command\n") if $verbose;
 	my $printer_info = `$command`;
 	# ($group_info) = $group_info =~ /([^\n]*Group Name.*Num Members[^\n]*)/s;
 	if (defined($printer_info)) {
 		print "$printer_info\n\n";
 	} else {
-		print_error(" No info found\n\n");
+		print_error("No info found\n\n");
 	}
 
 }
@@ -1084,6 +1084,13 @@ sub print_heading {
 	print colored(" " . "=" x ($len / 2) . "( ", 'blue');
 	print colored("$output", 'green');
 	print colored(" )" . "=" x ($len / 2) . "\n\n", 'blue');
+}
+
+sub print_verbose {
+	my $string = shift;
+	my $output = "$string";
+	print colored("\n[V] ", 'yellow');
+	print colored("$output\n", 'magenta');
 }
 
 sub print_plus {

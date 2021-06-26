@@ -673,25 +673,63 @@ sub enum_shares {
 	print_plus("Attempting to map shares on $global_target\n");
 	my @shares = $shares =~ /^[\t ]*?([ \S]+?)[\t ]*?(?:Disk|IPC|Printer)[^\n]*/gms;
 	foreach my $share (@shares) {
+		my ($mapping_result, $listing_result, $writing_result) = ("N/A","N/A","N/A");
+
 		$share =~ s/'/'\\''/g;
 		my $command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
 		print_verbose("Attempting map to share //$global_target/$share with command: $command\n") if $verbose;
 		my $output = `$command`;
-		print "//$global_target/$share\t";
-		if ($output =~ /NT_STATUS_ACCESS_DENIED listing/) {
-			print "Mapping: OK\tListing: DENIED\n";
+	
+		if ($output =~ /NT_STATUS_ACCESS_DENIED listing/ || 
+			$output =~ /do_list:.*NT_STATUS_ACCESS_DENIED/ ) {
+			$mapping_result="OK"; $listing_result="DENIED";
 		} elsif ($output =~ /tree connect failed: NT_STATUS_ACCESS_DENIED/) {
-			print colored("Mapping: ", 'magenta');
-			print "DENIED, Listing: N/A\n";
+			$mapping_result="DENIED"; $listing_result="N/A";
 		} elsif ($output =~ /\n\s+\.\.\s+D.*\d{4}\n/) {
-			print colored("Mapping: ", 'magenta');
-			print "OK";
-			print colored("Listing: ", 'magenta');
-			print "OK\n";
+			$mapping_result="OK" ; $listing_result="OK";
 		} else {
 			print_error("Can't understand response:\n");
 			print $output;
 		}
+		
+		if ($mapping_result eq "OK") {
+			# check for write access
+			my @chars = ("A".."Z", "a".."z", "0".."9");
+			my $random_string;
+			$random_string .= $chars[rand @chars] for 1..8;
+			
+			$command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c 'mkdir $random_string' 2>&1";
+			print_verbose("Checking write access to share //$global_target/$share with command: $command\n") if $verbose;
+			$output = `$command` ;
+			if ($output =~ /NT_STATUS_ACCESS_DENIED making/) {
+				$writing_result="DENIED" ;
+			} elsif (length $output) {
+				# the command should not give any output, if something was output it's a failure
+				print error("Can't understand response:\n");
+				print $output;
+			} else {
+				$writing_result="OK"
+			}
+			if ($writing_result ne "DENIED") {
+				# remove the directory we created
+				$command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c 'rmdir $random_string' 2>&1";
+				print_verbose("Removing created directory on share //$global_target/$share with command: $command\n") if $verbose;
+				$output=`$command` ;
+				if (length $output) {
+					print error("rmdir command returned the following:\n");
+					print $output ;
+				}
+			}
+		}
+		# print results
+		print "//$global_target/$share\t";
+		print colored("Mapping: ", 'magenta');
+		print $mapping_result ;
+		print colored(" Listing: ", 'magenta');
+		print $listing_result ;
+		print colored(" Writing: ", 'magenta');
+		print $writing_result ;
+		print "\n" ; 
 	}
 }
 

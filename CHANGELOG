@@ -1,23 +1,23 @@
 2021-04-10 Enum4Linux v0.9.0
 
 * Thanks to jtpereyda, logicsec, mrefish, Kawsay, NoxNoctis,
-  BrashEndeavours, real-datagram, rastating, DidierA
-* Added protocol mismatch detection
-* Cleaned up error messages
+  BrashEndeavours, real-datagram, rastating.
+* Added protocol mismatch detection.
+* Cleaned up error messages.
 * Attempts to guess domain based on 0.in-addr.arpa records
-  from default DNS server
-* Bug fix: Adjusted regexes to escape hyphens
+  from default DNS server.
+* Bug fix: Adjusted regexes to escape hyphens.
 * Bug fix: Added error handling for smbclient yielding no OS
-  info
+  info.
 * Updated with color coding and fixed globals to remove
-  errors
-* Bug fix: Fixed -a help typo
-* Bug fix: Misparsing when sharename IPC exists
+  errors.
+* Bug fix: Fixed -a help typo.
+* Bug fix: Misparsing when sharename IPC exists.
 * Bug fix: Updated enum4linux.pl to better handle single
-  quote character in username and password
-* Bug fix: Updated issues with IPC not parsing correctly
-* Added handling of NT_STATUS_INVALID_PARAMETER when finding users
-* Added README.md
+  quote character in username and password.
+* Bug fix: Updated issues with IPC not parsing correctly.
+* Added handling of NT_STATUS_INVALID_PARAMETER when finding users.
+* Added README.md.
 
 2012-11-30 Enum4linux v0.8.9
 

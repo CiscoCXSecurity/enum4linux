@@ -1,3 +1,11 @@
+2021-06-28 Enum4Linux v0.9.1
+
+* Cleaned up CHANGELOG.
+* Thanks to DidierA.
+* Added check for writable shares.
+* Hid writable shares sheck being -A flag to ensure no change to default behaviour.
+* Fixed check for writable shares to cope with Samba being chatty.
+
 2021-04-10 Enum4Linux v0.9.0
 
 * Thanks to jtpereyda, logicsec, mrefish, Kawsay, NoxNoctis,

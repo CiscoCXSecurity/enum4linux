@@ -48,9 +48,10 @@ use Data::Dumper;
 use Scalar::Util qw(tainted);
 use Term::ANSIColor;
 
-my $VERSION="0.9.0";
+my $VERSION="0.9.1";
 my $verbose = 0;
 my $debug = 0;
+my $aggressive = 0;
 my $global_fail_limit = 1000;     # no command line option yet
 my $global_search_until_fail = 0; # no command line option yet
 my $heighest_rid = 999999;
@@ -174,6 +175,7 @@ Additional options:
     -w wrkg   Specify workgroup manually (usually found automatically)
     -n        Do an nmblookup (similar to nbtstat)
     -v        Verbose.  Shows full commands being run (net, rpcclient, etc.)
+    -A        Aggressive. Do write checks on shares etc
 
 RID cycling should extract a list of users from Windows \(or Samba\) hosts 
 which have RestrictAnonymous set to 1 \(Windows NT and 2000\), or \"Network 
@@ -210,7 +212,7 @@ $ENV{'PATH'} =~ s/:$//;
 $ENV{'PATH'} =~ s/^\.://;
 $ENV{'PATH'} =~ s/:\.//;
 
-getopts('UMNSPGlLDu:dp:f:rR:s:k:vow:hnaiPK:', \%opts);
+getopts('UMNSPGlLDu:dp:f:rR:s:k:vAow:hnaiPK:', \%opts);
 
 # Print help message if required
 if ($opts{'h'}) {
@@ -260,6 +262,7 @@ $global_share_file     = $opts{'s'} if $opts{'s'};
 $global_known_username_string = $opts{'k'} if $opts{'k'};
 $global_workgroup      = $opts{'w'} if $opts{'w'};
 $verbose               = $opts{'v'} if $opts{'v'};
+$aggressive            = 1          if $opts{'A'};
 $opts{'r'}             = 1          if $opts{'R'};
 
 $global_search_until_fail = 1 if defined($opts{'K'});
@@ -691,33 +694,44 @@ sub enum_shares {
 			print_error("Can't understand response:\n");
 			print $output;
 		}
-		
 		if ($mapping_result eq "OK") {
-			# check for write access
-			my @chars = ("A".."Z", "a".."z", "0".."9");
-			my $random_string;
-			$random_string .= $chars[rand @chars] for 1..8;
-			
-			$command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c 'mkdir $random_string' 2>&1";
-			print_verbose("Checking write access to share //$global_target/$share with command: $command\n") if $verbose;
-			$output = `$command` ;
-			if ($output =~ /NT_STATUS_ACCESS_DENIED making/) {
-				$writing_result="DENIED" ;
-			} elsif (length $output) {
-				# the command should not give any output, if something was output it's a failure
-				print error("Can't understand response:\n");
-				print $output;
-			} else {
-				$writing_result="OK"
-			}
-			if ($writing_result ne "DENIED") {
-				# remove the directory we created
-				$command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c 'rmdir $random_string' 2>&1";
-				print_verbose("Removing created directory on share //$global_target/$share with command: $command\n") if $verbose;
-				$output=`$command` ;
-				if (length $output) {
-					print error("rmdir command returned the following:\n");
-					print $output ;
+			if ($aggressive) {
+				print "testing write access " . $share . "\n";
+				# check for write access
+				my @chars = ("A".."Z", "a".."z", "0".."9");
+				my $random_string;
+				$random_string .= $chars[rand @chars] for 1..8;
+				
+				$command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c 'mkdir $random_string' 2>&1";
+				print_verbose("Checking write access to share //$global_target/$share with command: $command\n") if $verbose;
+				$output = `$command` ;
+				if ($output =~ /NT_STATUS_ACCESS_DENIED making/) {
+					$writing_result="DENIED" ;
+				} elsif (length $output) {
+					# the command should not give any output, if something was output maybe it's a failure
+                			my $command2 = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c dir 2>&1";
+                			print_verbose("Attempting check for directory $random_string on //$global_target/$share with command: $command2\n") if $verbose;
+                			my $output2 = `$command2`;
+					if ($output2 =~ /.*$random_string.*/) {
+						$writing_result="OK";
+					} else {
+						print_error("Can't understand initial response:\n");
+						print $output;
+						print_error("Can't understand second response:\n");
+						print $output2;
+					}
+				} else {
+					$writing_result="OK";
+				}
+				if ($writing_result ne "DENIED") {
+					# remove the directory we created
+					$command = "smbclient -W '$global_workgroup' //'$global_target'/'$share' -U'$global_username'\%'$global_password' -c 'rmdir $random_string' 2>&1";
+					print_verbose("Removing created directory on share //$global_target/$share with command: $command\n") if $verbose;
+					$output=`$command` ;
+					if (length $output) {
+						print_error("rmdir command returned the following:\n");
+						print $output ;
+					}
 				}
 			}
 		}

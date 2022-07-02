@@ -960,33 +960,44 @@ sub enum_users_rids {
 }
 
 sub enum_users {
+	my @rids;
+	my @rids2;
+	
 	print_heading("Users on $global_target");
 	my $command = "rpcclient -W '$global_workgroup' -c querydispinfo -U'$global_username'\%'$global_password' '$global_target' 2>&1";
 	print_verbose("Attempting to get userlist with command: $command\n") if $verbose;
 	my $users = `$command`;
-	my $continue = 1;
-	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
-		print_error("Couldn't find users using querydispinfo: NT_STATUS_ACCESS_DENIED\n");
+	if ($users ne "") {
+		my $continue = 1;
+		if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
+			print_error("Couldn't find users using querydispinfo: NT_STATUS_ACCESS_DENIED\n");
+		} else {
+			($users) = $users =~ /(index:.*)/s;
+			print $users;
+			$continue = 0;
+		}
+		my @rids_hex = $users =~ /RID:\s+0x([a-fA-f0-9]+)\s/gs;
+		@rids = map { hex($_) } @rids_hex;
 	} else {
-		($users) = $users =~ /(index:.*)/s;
-		print $users;
-		$continue = 0;
-	}
-	my @rids_hex = $users =~ /RID:\s+0x([a-fA-f0-9]+)\s/gs;
-	my @rids = map { hex($_) } @rids_hex;
+        	print_error("No response using rpcclient querydispinfo\n");
+    	}
 
 	print "\n";
 	$command = "rpcclient -W '$global_workgroup' -c enumdomusers -U'$global_username'\%'$global_password' '$global_target' 2>&1";
 	print_verbose("Attempting to get userlist with command: $command\n") if $verbose;
 	$users = `$command`;
-	if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
-		print_error("Couldn't find users using enumdomusers: NT_STATUS_ACCESS_DENIED\n");
+	if ($users ne "") {
+		if ($users =~ /NT_STATUS_ACCESS_DENIED/) {
+			print_error("Couldn't find users using enumdomusers: NT_STATUS_ACCESS_DENIED\n");
+		} else {
+			($users) = $users =~ /(user:.*)/s;
+			print $users;
+		}
+		my @rids_hex2 = $users =~ /rid:\[0x([A-Fa-f0-9]+)\]/gs;
+		@rids2 = map { hex($_) } @rids_hex2;
 	} else {
-		($users) = $users =~ /(user:.*)/s;
-		print $users;
-	}
-	my @rids_hex2 = $users =~ /rid:\[0x([A-Fa-f0-9]+)\]/gs;
-	my @rids2 = map { hex($_) } @rids_hex2;
+        	print_error("No response using rpcclient enumdomusers\n");
+    	}
 
 	my %rids;
 	foreach my $rid (@rids, @rids2) {

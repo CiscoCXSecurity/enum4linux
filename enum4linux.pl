@@ -688,7 +688,9 @@ sub enum_shares {
 			$mapping_result="OK"; $listing_result="DENIED";
 		} elsif ($output =~ /tree connect failed: NT_STATUS_ACCESS_DENIED/) {
 			$mapping_result="DENIED"; $listing_result="N/A";
-		} elsif ($output =~ /\n\s+\.\.\s+D.*\d{4}\n/) {
+		} elsif ($output =~ /NT_STATUS_NO_SUCH_FILE listing/) {
+                        $mapping_result="N/A"; $listing_result="N/A";
+		} elsif ($output =~ /\n\s+(\.\.|.*?)\s+D.*\d{4}\n/) {
 			$mapping_result="OK" ; $listing_result="OK";
 		} else {
 			print_error("Can't understand response:\n");

@@ -966,7 +966,7 @@ sub enum_users {
 	my @rids2;
 	
 	print_heading("Users on $global_target");
-	my $command = "rpcclient -W '$global_workgroup' -c querydispinfo -U'$global_username'\%'$global_password' '$global_target' 2>&1";
+	my $command = "rpcclient -W '$global_workgroup' -c querydispinfo -U'$global_username'\%'$global_password' -d 10 '$global_target' 2>&1";
 	print_verbose("Attempting to get userlist with command: $command\n") if $verbose;
 	my $users = `$command`;
 	if ($users ne "") {
@@ -985,7 +985,7 @@ sub enum_users {
     	}
 
 	print "\n";
-	$command = "rpcclient -W '$global_workgroup' -c enumdomusers -U'$global_username'\%'$global_password' '$global_target' 2>&1";
+	$command = "rpcclient -W '$global_workgroup' -c enumdomusers -U'$global_username'\%'$global_password' -d 10 '$global_target' 2>&1";
 	print_verbose("Attempting to get userlist with command: $command\n") if $verbose;
 	$users = `$command`;
 	if ($users ne "") {
@@ -1039,53 +1039,57 @@ sub get_user_details_from_rid {
 	print_verbose("Attempting to get detailed user info with command: $command\n") if $verbose;
 	my $user_info = `$command`;
 	($user_info) = $user_info =~ /([^\n]*User Name.*logon_hrs[^\n]*)/s;
-	print "$user_info\n" if defined($user_info);
-	my ($acb_info) = $user_info =~ /acb_info\s+:\s+0x([0-9a-fA-F]+)/;
-	if ($acb_info) {
-		my $acb_int = hex($acb_info);
-		my $pad = "\t";
-		if ($acb_int & 0x00000001) {
-			printf $pad . "%-25.25s: %s\n", "Account Disabled", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Account Disabled", "False";
-		}
-		if ($acb_int & 0x00000200) {
-			printf $pad . "%-25.25s: %s\n", "Password does not expire", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Password does not expire", "False";
-		}
-		if ($acb_int & 0x00000400) {
-			printf $pad . "%-25.25s: %s\n", "Account locked out", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Account locked out", "False";
-		}
-		if ($acb_int & 0x00020000) {
-			printf $pad . "%-25.25s: %s\n", "Password expired", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Password expired", "False";
-		}
-		if ($acb_int & 0x00000040) {
-			printf $pad . "%-25.25s: %s\n", "Interdomain trust account", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Interdomain trust account", "False";
-		}
-		if ($acb_int & 0x00000080) {
-			printf $pad . "%-25.25s: %s\n", "Workstation trust account", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Workstation trust account", "False";
-		}
-		if ($acb_int & 0x00000100) {
-			printf $pad . "%-25.25s: %s\n", "Server trust account", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Server trust account", "False";
-		}
-		if ($acb_int & 0x00002000) {
-			printf $pad . "%-25.25s: %s\n", "Trusted for delegation", "True";
-		} else {
-			printf $pad . "%-25.25s: %s\n", "Trusted for delegation", "False";
-		}
-	}
-	print "\n";
+	if (defined($user_info)) {
+                print "$user_info\n\n";
+                my ($acb_info) = $user_info =~ /acb_info\s+:\s+0x([0-9a-fA-F]+)/;
+                if ($acb_info) {
+                        my $acb_int = hex($acb_info);
+                        my $pad = "\t";
+                        if ($acb_int & 0x00000001) {
+                                printf $pad . "%-25.25s: %s\n", "Account Disabled", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Account Disabled", "False";
+                        }
+                        if ($acb_int & 0x00000200) {
+                                printf $pad . "%-25.25s: %s\n", "Password does not expire", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Password does not expire", "False";
+                        }
+                        if ($acb_int & 0x00000400) {
+                                printf $pad . "%-25.25s: %s\n", "Account locked out", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Account locked out", "False";
+                        }
+                        if ($acb_int & 0x00020000) {
+                                printf $pad . "%-25.25s: %s\n", "Password expired", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Password expired", "False";
+                        }
+                        if ($acb_int & 0x00000040) {
+                                printf $pad . "%-25.25s: %s\n", "Interdomain trust account", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Interdomain trust account", "False";
+                        }
+                        if ($acb_int & 0x00000080) {
+                                printf $pad . "%-25.25s: %s\n", "Workstation trust account", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Workstation trust account", "False";
+                        }
+                        if ($acb_int & 0x00000100) {
+                                printf $pad . "%-25.25s: %s\n", "Server trust account", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Server trust account", "False";
+                        }
+                        if ($acb_int & 0x00002000) {
+                                printf $pad . "%-25.25s: %s\n", "Trusted for delegation", "True";
+                        } else {
+                                printf $pad . "%-25.25s: %s\n", "Trusted for delegation", "False";
+                        }
+                }
+                print "\n";
+        } else {
+		print_error("No info found\n\n")
+        }
 }
 
 sub invalid_rid {

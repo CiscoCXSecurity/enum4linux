@@ -269,10 +269,14 @@ $global_search_until_fail = 1 if defined($opts{'K'});
 
 my @global_known_usernames = split(",", $global_known_username_string);
 
-# Check that dependant programs are present on the system - hopefull "which" is installed!
+# Check that dependant programs are present on the system
 my $dependency_error = 0;
 foreach my $prog (@dependent_programs) {
 	my $which_output = `which $prog 2>&1`;
+	if (!defined $which_output) {
+        	print "Please install \"which\" for this script to work correctly \n";
+        	exit 1;
+    	}
 	chomp $which_output;
 	if ($which_output !~ /^\/.*\/$prog$/) {
 		print "ERROR: $prog is not in your path.  Check that samba package is installed\n";

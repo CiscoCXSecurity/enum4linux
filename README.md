@@ -24,12 +24,7 @@ Copy code
 
 `enum4linux [options] <host>` 
 
-## 📁 **Examples:**
 
-Copy code
-
-`enum4linux -a 192.168.1.100
-enum4linux -U -M -S -G -r -v -p mypassword 192.168.1.100` 
 
 ## 📜 **Previous versions:** If you're looking for previous versions of the tool, they can be found at the bottom of the page.
 

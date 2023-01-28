@@ -4,9 +4,9 @@ A powerful Linux alternative to enum.exe for enumerating data from Windows and S
 
 Enum4linux is a versatile tool for gathering information from Windows and Samba systems. It offers similar functionality to enum.exe, formerly available from [www.bindview.com](http://www.bindview.com/).
 
-💻 **Technologies used:** Enum4linux is written in Perl and is essentially a wrapper around the popular Samba tools such as smbclient, rpclient, net, and nmblookup.
+## 💻 **Technologies used:** Enum4linux is written in Perl and is essentially a wrapper around the popular Samba tools such as smbclient, rpclient, net, and nmblookup.
 
-🔍 **Features:**
+## 🔍 **Features:**
 
 -   Enumerates user and group information
 -   Enumerates share information
@@ -18,20 +18,20 @@ Enum4linux is a versatile tool for gathering information from Windows and Samba 
 -   Dumps the remote `security` information
 -   Dumps the remote `share` information
 
-📚 **Usage:** The tool usage can be found below followed by examples.
+## 📚 **Usage:** The tool usage can be found below followed by examples.
 
 Copy code
 
 `enum4linux [options] <host>` 
 
-📁 **Examples:**
+## 📁 **Examples:**
 
 Copy code
 
 `enum4linux -a 192.168.1.100
 enum4linux -U -M -S -G -r -v -p mypassword 192.168.1.100` 
 
-📜 **Previous versions:** If you're looking for previous versions of the tool, they can be found at the bottom of the page.
+## 📜 **Previous versions:** If you're looking for previous versions of the tool, they can be found at the bottom of the page.
 
 🔗 **More information:** [https://labs.portcullis.co.uk/tools/enum4linux/](https://labs.portcullis.co.uk/tools/enum4linux/)
 

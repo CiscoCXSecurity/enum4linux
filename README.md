@@ -34,7 +34,7 @@ Copy code
 
 ## Contribution 🤝
 
-We welcome any contributions to enum4linux, whether it's in the form of bug reports, feature requests, or code contributions. Please refer to the [CONTRIBUTING.md](https://chat.openai.com/CONTRIBUTING.md) for more information on how to contribute.
+We welcome any contributions to enum4linux, whether it's in the form of bug reports, feature requests, or code contributions. Please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) for more information on how to contribute.
 
 ## Code of Conduct 📜
 

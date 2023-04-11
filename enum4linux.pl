@@ -528,7 +528,7 @@ sub enum_password_policy {
 	chomp $passpol_info;
 	print "\n";
 	if (defined($passpol_info) and $passpol_info !~ /ACCESS_DENIED/) {
-		print_plus("Retieved partial password policy with rpcclient:\n\n");
+		print_plus("Retrieved partial password policy with rpcclient:\n\n");
 		if ($passpol_info =~ /password_properties: 0x[0-9a-fA-F]{7}0/) {
 			print "Password Complexity: Disabled\n";
 		} elsif ($passpol_info =~ /password_properties: 0x[0-9a-fA-F]{7}1/) {

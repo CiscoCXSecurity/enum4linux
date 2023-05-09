@@ -272,9 +272,9 @@ my @global_known_usernames = split(",", $global_known_username_string);
 # Check that dependant programs are present on the system - hopefull "which" is installed!
 my $dependency_error = 0;
 foreach my $prog (@dependent_programs) {
-	my $which_output = `which $prog 2>&1`;
+	my $which_output = `which $prog 2>/dev/null`;
 	chomp $which_output;
-	if (($which_output !~ /^\/.*\/$prog$/) && ! -f "/usr/bin/" . $prog) {
+	if (($which_output !~ /^\/.*\/$prog$/) && (! -f "/usr/bin/" . $prog) && (! -f "/usr/sbin/" . $prog) && (! -f "/usr/local/bin/" . $prog) && (! -f "/usr/local/bin/" . $prog)) {
 		print "ERROR: $prog is not in your path.  Check that samba package is installed\n";
 		$dependency_error = 1;
 	} else {

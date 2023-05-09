@@ -274,7 +274,7 @@ my $dependency_error = 0;
 foreach my $prog (@dependent_programs) {
 	my $which_output = `which $prog 2>&1`;
 	chomp $which_output;
-	if ($which_output !~ /^\/.*\/$prog$/) {
+	if (($which_output !~ /^\/.*\/$prog$/) && ! -f "/usr/bin/" . $prog) {
 		print "ERROR: $prog is not in your path.  Check that samba package is installed\n";
 		$dependency_error = 1;
 	} else {

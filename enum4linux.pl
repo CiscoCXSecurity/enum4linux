@@ -233,8 +233,8 @@ if ($global_target =~ /^([a-zA-Z0-9\._\-]+)$/) {
 # Read in options
 #
 
-# Enable -a if no other options (apart from -v) are given
-unless (scalar( grep { $_ ne 'v' } keys %opts)) {
+# Enable -a if no other options (apart from -v, -u, -p or -w) are given
+unless (scalar( grep { $_ ne 'v' && $_ ne 'u' && $_ ne 'p' && $_ ne 'w' } keys %opts)) {
 	$opts{'a'} = 1;
 }
 

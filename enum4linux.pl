@@ -550,8 +550,53 @@ sub enum_lsa_policy {
 }
 
 sub enum_machines {
-	print_heading("Machine Enumeration on $global_target");
-	print_error("Not implemented in this version of enum4linux.\n");
+        print_heading("Machine Enumeration on $global_target");
+        my @dm_rids;
+
+        # First, get the RID list
+        my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'querygroupmem 0x203' '$global_target' 2>&1";
+        print_verbose("Running command: $command\n") if $verbose;
+        my $output = `$command`;
+
+        if ($output) {
+                # Clean up the output and extract RIDs
+                my @rids_hex = $output =~ /rid:\[(0x[a-fA-F0-9]+)\]/g;
+                @dm_rids = @rids_hex;
+                print_verbose("The array contains " . scalar(@dm_rids) . " items\n") if $verbose;
+
+                # Set the array chunk sizes
+                my $maxarraycount = scalar(@dm_rids);
+                my $arraystart = 0;
+                my $arraycount = 500;
+
+                while ($arraystart < $maxarraycount) {
+                    my $arrayend = ($arraystart + $arraycount > $maxarraycount) ? $maxarraycount : $arraystart + $arraycount;
+                    my @temparray = @dm_rids[$arraystart..($arrayend - 1)];
+
+                    print_verbose("Testing from $arraystart to $arrayend\n") if $verbose;
+
+                    # Flatten the array into a space-separated string
+                    my $tempstring = join(' ', @temparray);
+
+                    # Run the rpcclient command for this batch of RIDs
+                    my $samlookup_cmd = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'samlookuprids domain $tempstring' '$global_target' 2>&1";
+                    print_verbose("Running command: $samlookup_cmd\n") if $verbose;
+                    my $result = `$samlookup_cmd`;
+
+                    # Extract both machine names and corresponding RIDs
+                    while ($result =~ /rid\s(0x[a-fA-F0-9]+):\s(\S+\$)/g) {
+                        my $rid = $1;
+                        my $machine = $2;
+                        print "machine:[$machine] rid:[$rid]\n";
+                    }
+
+                    # Increment for the next batch
+                    $arraystart += $arraycount;
+                }
+        } else {
+                print_error("No response using rpcclient querygroupmem\n");
+        }
+	print "\n";
 }
 
 sub enum_names {

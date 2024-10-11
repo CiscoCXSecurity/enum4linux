@@ -233,8 +233,8 @@ if ($global_target =~ /^([a-zA-Z0-9\._\-]+)$/) {
 # Read in options
 #
 
-# Enable -a if no other options (apart from -v) are given
-unless (scalar( grep { $_ ne 'v' } keys %opts)) {
+# Enable -a if no other options (apart from -v, -u, -p or -w) are given
+unless (scalar( grep { $_ ne 'v' && $_ ne 'u' && $_ ne 'p' && $_ ne 'w' } keys %opts)) {
 	$opts{'a'} = 1;
 }
 
@@ -274,11 +274,12 @@ my $dependency_error = 0;
 foreach my $prog (@dependent_programs) {
 	my $which_output = `which $prog 2>&1`;
 	if (!defined $which_output) {
-        	print "Please install \"which\" for this script to work correctly \n";
-        	exit 1;
-    	}
+    print "Please install \"which\" for this script to work correctly\n";
+    exit 1;
+  }
+	my $which_output = `which $prog 2>/dev/null`;
 	chomp $which_output;
-	if ($which_output !~ /^\/.*\/$prog$/) {
+	if (($which_output !~ /^\/.*\/$prog$/) && (! -f "/usr/bin/" . $prog) && (! -f "/usr/sbin/" . $prog) && (! -f "/usr/local/bin/" . $prog) && (! -f "/usr/local/bin/" . $prog)) {
 		print "ERROR: $prog is not in your path.  Check that samba package is installed\n";
 		$dependency_error = 1;
 	} else {
@@ -532,7 +533,7 @@ sub enum_password_policy {
 	chomp $passpol_info;
 	print "\n";
 	if (defined($passpol_info) and $passpol_info !~ /ACCESS_DENIED/) {
-		print_plus("Retieved partial password policy with rpcclient:\n\n");
+		print_plus("Retrieved partial password policy with rpcclient:\n\n");
 		if ($passpol_info =~ /password_properties: 0x[0-9a-fA-F]{7}0/) {
 			print "Password Complexity: Disabled\n";
 		} elsif ($passpol_info =~ /password_properties: 0x[0-9a-fA-F]{7}1/) {
@@ -554,8 +555,53 @@ sub enum_lsa_policy {
 }
 
 sub enum_machines {
-	print_heading("Machine Enumeration on $global_target");
-	print_error("Not implemented in this version of enum4linux.\n");
+        print_heading("Machine Enumeration on $global_target");
+        my @dm_rids;
+
+        # First, get the RID list
+        my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'querygroupmem 0x203' '$global_target' 2>&1";
+        print_verbose("Running command: $command\n") if $verbose;
+        my $output = `$command`;
+
+        if ($output) {
+                # Clean up the output and extract RIDs
+                my @rids_hex = $output =~ /rid:\[(0x[a-fA-F0-9]+)\]/g;
+                @dm_rids = @rids_hex;
+                print_verbose("The array contains " . scalar(@dm_rids) . " items\n") if $verbose;
+
+                # Set the array chunk sizes
+                my $maxarraycount = scalar(@dm_rids);
+                my $arraystart = 0;
+                my $arraycount = 500;
+
+                while ($arraystart < $maxarraycount) {
+                    my $arrayend = ($arraystart + $arraycount > $maxarraycount) ? $maxarraycount : $arraystart + $arraycount;
+                    my @temparray = @dm_rids[$arraystart..($arrayend - 1)];
+
+                    print_verbose("Testing from $arraystart to $arrayend\n") if $verbose;
+
+                    # Flatten the array into a space-separated string
+                    my $tempstring = join(' ', @temparray);
+
+                    # Run the rpcclient command for this batch of RIDs
+                    my $samlookup_cmd = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'samlookuprids domain $tempstring' '$global_target' 2>&1";
+                    print_verbose("Running command: $samlookup_cmd\n") if $verbose;
+                    my $result = `$samlookup_cmd`;
+
+                    # Extract both machine names and corresponding RIDs
+                    while ($result =~ /rid\s(0x[a-fA-F0-9]+):\s(\S+\$)/g) {
+                        my $rid = $1;
+                        my $machine = $2;
+                        print "machine:[$machine] rid:[$rid]\n";
+                    }
+
+                    # Increment for the next batch
+                    $arraystart += $arraycount;
+                }
+        } else {
+                print_error("No response using rpcclient querygroupmem\n");
+        }
+	print "\n";
 }
 
 sub enum_names {

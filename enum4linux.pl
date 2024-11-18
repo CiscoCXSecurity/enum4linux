@@ -364,7 +364,7 @@ sub get_nbtstat {
 }
 
 sub get_domain_sid {
-	print_heading("Getting domain SID for $global_target");
+	print_heading(" Getting domain SID for $global_target");
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' $global_target -c 'lsaquery' 2>&1";
 	print_verbose("Attempting to get domain SID with command: $command\n") if $verbose;
 	my $domain_sid_text = `$command`;
@@ -414,7 +414,7 @@ sub get_workgroup {
 # Get long domain name via LDAP
 # We don't do this by default because LDAP ports might not be present, or firewalled.
 sub get_ldapinfo {
-	print_heading("Getting information via LDAP for $global_target");
+	print_heading(" Getting information via LDAP for $global_target");
 	my $command = "ldapsearch -x -h '$global_target' -p 389 -s base namingContexts 2>&1";
 	print_verbose("Attempting to long domain name: $command\n") if $verbose;
 	unless ($odp_present{"ldapsearch"}) {
@@ -615,11 +615,11 @@ sub enum_groups {
 		# Get list of groups
 		my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c 'enumalsgroups $grouptype' 2>&1";
 		if ($grouptype eq "domain") {
-			print_verbose("Getting local groups with command: $command\n") if $verbose;
+			print_verbose(" Getting local groups with command: $command\n") if $verbose;
 			print_plus(" Getting local groups:\n");
 		} else {
-			print_verbose("Getting $grouptype groups with command: $command\n") if $verbose;
-			print_plus("Getting $grouptype groups:\n");
+			print_verbose(" Getting $grouptype groups with command: $command\n") if $verbose;
+			print_plus(" Getting $grouptype groups:\n");
 		}
 		my $groups_string = `$command`;
 		if ($groups_string =~ /error: NT_STATUS_ACCESS_DENIED/) {
@@ -656,7 +656,7 @@ sub enum_groups {
 		}
 		if ($global_detailed) {
 			foreach my $groupname (keys %rid_of_group) {
-				print_plus("Getting detailed info for group $groupname (RID: " . $rid_of_group{$groupname} . ")\n");
+				print_plus(" Getting detailed info for group $groupname (RID: " . $rid_of_group{$groupname} . ")\n");
 				get_group_details_from_rid($rid_of_group{$groupname});
 			}
 		}
@@ -666,7 +666,7 @@ sub enum_groups {
 sub enum_dom_groups {
 	# Get list of groups
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c \"enumdomgroups\" 2>&1";
-	print_verbose("Getting domain groups with command: $command\n") if $verbose;
+	print_verbose(" Getting domain groups with command: $command\n") if $verbose;
 	print_plus(" Getting domain groups:\n");
 
 	my $groups_string = `$command`;
@@ -697,7 +697,7 @@ sub enum_dom_groups {
 	}
 	if ($global_detailed) {
 		foreach my $groupname (keys %rid_of_group) {
-			print_plus("Getting detailed info for group $groupname (RID: " . $rid_of_group{$groupname} . ")\n");
+			print_plus(" Getting detailed info for group $groupname (RID: " . $rid_of_group{$groupname} . ")\n");
 			get_group_details_from_rid($rid_of_group{$groupname});
 		}
 	}
@@ -1152,7 +1152,7 @@ sub invalid_rid {
 }
 
 sub get_printer_info {
-	print_heading("Getting printer info for $global_target");
+	print_heading(" Getting printer info for $global_target");
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' -c 'enumprinters' '$global_target' 2>&1";
 	print_verbose("Attempting to get printer info with command: $command\n") if $verbose;
 	my $printer_info = `$command`;

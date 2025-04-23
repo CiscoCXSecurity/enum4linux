@@ -616,7 +616,7 @@ sub enum_groups {
 		my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c 'enumalsgroups $grouptype' 2>&1";
 		if ($grouptype eq "domain") {
 			print_verbose("Getting local groups with command: $command\n") if $verbose;
-			print_plus(" Getting local groups:\n");
+			print_plus("Getting local groups:\n");
 		} else {
 			print_verbose("Getting $grouptype groups with command: $command\n") if $verbose;
 			print_plus("Getting $grouptype groups:\n");
@@ -637,9 +637,9 @@ sub enum_groups {
 		# Get group members
 		my %rid_of_group = $groups_string =~ /\[([^\]]+)\]/sg;
 		if ($grouptype eq "domain") {
-			print_plus(" Getting local group memberships:\n");
+			print_plus("Getting local group memberships:\n");
 		} else {
-			print_plus(" Getting $grouptype group memberships:\n");
+			print_plus("Getting $grouptype group memberships:\n");
 		}
 		foreach my $groupname (keys %rid_of_group) {
 			$groupname =~ s/'/'\\''/g;
@@ -667,7 +667,7 @@ sub enum_dom_groups {
 	# Get list of groups
 	my $command = "rpcclient -W '$global_workgroup' -U'$global_username'\%'$global_password' '$global_target' -c \"enumdomgroups\" 2>&1";
 	print_verbose("Getting domain groups with command: $command\n") if $verbose;
-	print_plus(" Getting domain groups:\n");
+	print_plus("Getting domain groups:\n");
 
 	my $groups_string = `$command`;
 	if ($groups_string =~ /error: NT_STATUS_ACCESS_DENIED/) {
@@ -680,7 +680,7 @@ sub enum_dom_groups {
 
 	# Get group members
 	my %rid_of_group = $groups_string =~ /\[([^\]]+)\]/sg;
-	print_plus(" Getting domain group memberships:\n");
+	print_plus("Getting domain group memberships:\n");
 
 	foreach my $groupname (keys %rid_of_group) {
 		$groupname =~ s/'/'\\''/g;
@@ -791,9 +791,9 @@ sub enum_shares {
 		print "//$global_target/$share\t";
 		print colored("Mapping: ", 'magenta');
 		print $mapping_result ;
-		print colored(" Listing: ", 'magenta');
+		print colored("Listing: ", 'magenta');
 		print $listing_result ;
-		print colored(" Writing: ", 'magenta');
+		print colored("Writing: ", 'magenta');
 		print $writing_result ;
 		print "\n" ; 
 	}
